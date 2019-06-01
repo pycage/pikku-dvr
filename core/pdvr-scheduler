@@ -1,0 +1,117 @@
+#! /bin/bash
+
+. `dirname $0`/../config
+. `dirname $0`/utils
+
+function get_next()
+{
+  local IS_FIRST=yes
+  local CURRENT_END=0
+  local CURRENT_CHANNEL=""
+  local ITEM
+  for ITEM in `ls ${SCHEDULE} | sort -n`; do
+    local START=$(( ${ITEM} - ${RECORDING_START_EARLY} ))
+    local DURATION=`cat ${SCHEDULE}/${ITEM} | cut -d"|" -f1`
+    local END=$(( ${ITEM} + ${DURATION} + ${RECORDING_STOP_LATE} ))
+    local CHANNEL=`cat ${SCHEDULE}/${ITEM} | cut -d"|" -f2`
+
+    if [ ${IS_FIRST} = yes ]; then
+      IS_FIRST=no
+    elif [ "${CHANNEL}" = "${CURRENT_CHANNEL}" ] && [ ${START} -le ${CURRENT_END} ]; then
+      true
+    else
+      break
+    fi
+
+    echo ${ITEM}
+    CURRENT_END=${END}
+    CURRENT_CHANNEL=${CHANNEL}
+  done
+}
+
+function get_info()
+{
+  local NEXT=$1
+
+  local NAMES=""
+
+  local START=0
+  local END=0
+  for ITEM in ${NEXT}; do
+    local DURATION=`cat ${SCHEDULE}/${ITEM} | cut -d"|" -f1`
+    local CHANNEL=`cat ${SCHEDULE}/${ITEM} | cut -d"|" -f2`
+    local NAME=`cat ${SCHEDULE}/${ITEM} | cut -d"|" -f3`
+    
+    [ ${START} -eq 0 ] && START=${ITEM}
+    END=$(( ${ITEM} + ${DURATION} ))
+
+    [ -n "${NAMES}" ] && NAMES="${NAMES}, "
+    NAMES="${NAMES}${NAME}"
+  done
+
+  [ `echo "${NAMES}" | wc -c` -gt 200 ] && NAMES="`echo \"${NAMES}\" | head -c 197`..."
+
+  local FULL_DURATION=$(( ${END} - ${START} ))
+  echo "${START}|${FULL_DURATION}|${CHANNEL}|${NAMES}"
+}
+
+mkdir -p ${SCHEDULE}
+mkdir -p ${PIDS}
+
+function at_exit()
+{
+  pkill -P $$
+  rm -f ${PIDS}/scheduler.pid
+  rm -f ${PIDS}/scheduler-service.pid
+}
+trap at_exit EXIT
+trap at_exit SIGINT SIGKILL
+
+log "Scheduler service started."
+echo "$$" > ${PIDS}/scheduler-service.pid
+while true; do
+
+  NEXT=`get_next`
+  if [ -n "${NEXT}" ]; then
+    INFO=`get_info "${NEXT}"`
+
+    REC_START=`echo "${INFO}" | cut -d"|" -f1`
+    REC_DURATION=`echo "${INFO}" | cut -d"|" -f2`
+    REC_CHANNEL=`echo "${INFO}" | cut -d"|" -f3`
+    REC_NAME=`echo "${INFO}" | cut -d"|" -f4`
+
+    # start recording X minutes early
+    TIMESTAMP=$(( ${REC_START} - ${RECORDING_START_EARLY} ))
+    NOW=`date +%s`
+
+    if [ ${TIMESTAMP} -gt ${NOW} ]; then
+      DELAY=$(( (${TIMESTAMP} - ${NOW}) / 2 ))
+      
+      if [ ${DELAY} -gt 600 ]; then
+        # we still have time to update the EPG
+        wakeup epg-updater
+        sleep 60
+      else
+        named_sleep scheduler ${DELAY}
+      fi
+    else
+      DURATION=$(( ${TIMESTAMP} + ${REC_DURATION} - ${NOW} ))
+
+      if [ ${DURATION} -gt 0 ]; then
+        # stop recording X minutes late
+        ACTUAL_DURATION=$(( ${DURATION} + ${RECORDING_STOP_LATE} ))
+        bash `dirname $0`/pdvr-record "${REC_CHANNEL}" "${ACTUAL_DURATION}" "${REC_NAME}"
+      else
+        log "Missed recording of '${REC_NAME}' (${REC_CHANNEL}) at `date -d @${TIMESTAMP}`."
+      fi
+
+      for ITEM in ${NEXT}; do
+        rm ${SCHEDULE}/${ITEM}
+      done
+    fi
+  else
+    wakeup epg-updater
+    named_sleep scheduler 60
+  fi
+
+done

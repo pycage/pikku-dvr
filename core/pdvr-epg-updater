@@ -1,0 +1,57 @@
+#! /bin/bash
+
+. `dirname $0`/../config
+. `dirname $0`/utils
+
+mkdir -p ${EPG}
+
+IFS="
+"
+
+function at_exit()
+{
+  pkill -P $$
+  rm -f ${PIDS}/epg-udpater.pid
+  rm -f ${PIDS}/epg-updater-service.pid
+}
+trap at_exit EXIT
+trap at_exit SIGINT SIGKILL
+
+log "EPG updater service started."
+echo "$$" > ${PIDS}/epg-updater-service.pid
+while true; do
+
+  if [ ! -f ${CHANNELS_CONF} ]; then
+    log "File ${CHANNELS_CONF} is missing. Aborting."
+    exit 1
+  elif [ -z "`which dvbv5-zap`" ]; then
+    log "dvbv5-zap is missing. Aborting."
+    exit 1
+  elif [ -z "`which dvbsnoop`" ]; then
+    log "dvbsnoop is missing. Aborting."
+    exit 1
+  fi
+
+  log "Scanning channels."
+  for ENTRY in `cat ${CHANNELS_CONF}`; do
+    CHANNEL_NAME=`echo "${ENTRY}" | cut -d: -f1`
+    SERVICE_ID=`echo "${ENTRY}" | cut -d: -f9`
+
+    log "Waiting."
+    named_sleep epg-updater
+
+    log "Updating EPG from ${CHANNEL_NAME}."
+    dvbv5-zap -c ${CHANNELS_CONF} -I zap -r "${CHANNEL_NAME}" >/dev/null 2>&1 &
+    ZAP_PID=$!
+
+    dvbsnoop -s sec -b 0x12 -N 500 > "${EPG}/${SERVICE_ID}.eit"
+    kill ${ZAP_PID}
+
+    log $(node `dirname $0`/js/epg-weaver.js ${EPG})
+    rm "${EPG}/${SERVICE_ID}.eit"
+  done
+
+  log "Finished scanning channels."
+  sleep 1d
+
+done

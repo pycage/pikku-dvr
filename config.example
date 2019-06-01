@@ -1,0 +1,26 @@
+# The path to your DVB channels.conf file in ZAP format.
+CHANNELS_CONF=$HOME/channels.conf
+
+# NOTE: All directories below will be created automatically if they do not
+#       exist yet.
+
+# The directory where you want Pikku-DVR put its internal files.
+WORK=$HOME/dvr/.work
+
+# The ouput directory for your recordings. Must be on the same partition as
+# the work directory.
+RECORDINGS=$HOME/dvr/recordings
+
+# The amount of seconds the recording should start early.
+RECORDING_START_EARLY=300
+
+# The amount of seconds the recording should stop late.
+RECORDING_STOP_LATE=600
+
+
+### Internal settings - do not change ###
+EPG=${WORK}/epg
+EXPORTS=${WORK}/exports
+LOG=${WORK}/log
+PIDS=${WORK}/pids
+SCHEDULE=${WORK}/schedule

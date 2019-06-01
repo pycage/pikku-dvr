@@ -1,0 +1,19 @@
+#! /bin/bash
+
+. `dirname $0`/../config
+. `dirname $0`/utils
+
+TIMESTAMP=`date +%s -d "$1"`
+DURATION=$2
+CHANNEL=$3
+NAME=$4
+
+mkdir -p ${SCHEDULE}
+
+echo "CHANNEL: ${CHANNEL}"
+echo "NAME: ${NAME}"
+echo "${DURATION}|${CHANNEL}|${NAME}" > ${SCHEDULE}/${TIMESTAMP}
+format_schedule ${TIMESTAMP}
+
+wakeup scheduler
+true

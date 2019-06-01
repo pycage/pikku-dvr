@@ -1,0 +1,208 @@
+#! /bin/bash
+
+COMMAND=$1
+
+CWD=$( cd `dirname $0`; pwd )
+if [ ! -f ${CWD}/config ]; then
+  echo "Missing configuration: ${CWD}/config"
+  exit 1
+fi
+
+. ${CWD}/config
+. ${CWD}/core/utils
+
+function is_running()
+{
+  local NAME=$1
+  [ -f ${PIDS}/${NAME}.pid ] && [ -d /proc/`cat ${PIDS}/${NAME}.pid` ]
+}
+
+function stop()
+{
+  local NAME=$1
+  if [ -f ${PIDS}/${NAME}.pid ]; then
+    local PID=`cat ${PIDS}/${NAME}.pid`
+    kill ${PID}
+    sleep 1
+  fi
+}
+
+function show_log()
+{
+  local NAME=$1
+
+  [ -f ${LOG}/${NAME}.log ] && cat ${LOG}/${NAME}.log \
+                            || echo "-- no log --"
+}
+
+function show_schedule()
+{
+  local MODE=$1
+  local TIMESTAMP
+  for TIMESTAMP in `ls ${SCHEDULE} | sort -n`; do
+    [ ${MODE} -eq 0 ] && echo "${TIMESTAMP}  `format_schedule ${TIMESTAMP}`"
+    [ ${MODE} -eq 1 ] && echo "${TIMESTAMP}|`cat ${SCHEDULE}/${TIMESTAMP}`"
+  done
+
+  [ ${MODE} -eq 0 ] && [ -z "${TIMESTAMP}" ] && echo "-- no schedule --"
+}
+
+
+
+case ${COMMAND} in
+
+start)
+  mkdir -p ${LOG}
+  echo "Starting."
+  if ! is_running scheduler-service; then
+    bash `dirname $0`/core/pdvr-scheduler > ${LOG}/scheduler.log 2>&1 &
+    disown $!
+    sleep 1
+  fi
+  if ! is_running converter-service; then
+    bash `dirname $0`/core/pdvr-converter > ${LOG}/converter.log 2>&1 &
+    disown $!
+    sleep 1
+  fi
+  if ! is_running epg-updater-service; then
+    bash `dirname $0`/core/pdvr-epg-updater > ${LOG}/epg-updater.log 2>&1 &
+    disown $!
+    sleep 1
+  fi
+
+  is_running scheduler-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " Scheduler"
+
+  is_running converter-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " Converter"
+
+  is_running epg-updater-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " EPG Updater"
+  ;;
+
+stop)
+  echo "Stopping."
+  is_running scheduler-service && stop scheduler-service
+  is_running converter-service && stop converter-service
+  is_running epg-updater-service && stop epg-updater-service
+
+  is_running scheduler-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " Scheduler"
+
+  is_running converter-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " Converter"
+
+  is_running epg-updater-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " EPG Updater"
+  ;;
+
+status)
+  is_running scheduler-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " Scheduler     `tail -1 ${LOG}/scheduler.log`"
+
+  is_running converter-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " Converter     `tail -1 ${LOG}/converter.log`"
+
+  is_running epg-updater-service \
+  && echo -n "[Running]" || echo -n "[Stopped]"
+  echo " EPG Updater   `tail -1 ${LOG}/epg-updater.log`"
+
+  if is_running record; then
+    TIMESTAMP=`ls ${SCHEDULE} | sort -n | head -1`
+    ENTRY=`cat ${SCHEDULE}/${TIMESTAMP}`
+    TIME=`date -d @${TIMESTAMP}`
+    DURATION=`echo "${ENTRY}" |cut -d"|" -f1`
+    CHANNEL=`echo "${ENTRY}" |cut -d"|" -f2`
+    NAME=`echo "${ENTRY}" |cut -d"|" -f3`
+    UNTIL=$(( ${TIMESTAMP} + ${DURATION} ))
+    UNTIL_TIME=`date +"%H:%M" -d @${UNTIL}`
+
+    echo ""
+    echo "[  Rec  ] ${NAME}  <${CHANNEL}>"
+    echo "          Until ${UNTIL_TIME}"
+  fi
+
+  if is_running converter-service && ! is_running converter; then
+    FILE=`ls -t ${EXPORTS}/*.mp4 2>/dev/null| head -1`
+    SIZE=`stat -c %s "${FILE}"`
+    echo ""
+    echo "[Convert] `basename \"${FILE}\"` (${SIZE} Bytes)"
+  fi
+  ;;
+
+record)
+  if is_running scheduler-service; then
+    bash `dirname $0`/core/pdvr-add "$2" "$3" "$4" "$5"
+  else
+    echo "The scheduler service is not running."
+  fi
+  ;;
+
+cancel)
+  bash `dirname $0`/core/pdvr-cancel $2
+  ;;
+
+show)
+  show_schedule 0
+  ;;
+
+epg)
+  CWD=`cd $(dirname $0); pwd`
+  node `dirname $0`/core/js/epg-browser.js ${CWD}/`basename $0`
+  ;;
+
+get-epg)
+  cat ${EPG}/epg.json
+  ;;
+
+get-channels)
+  cat ${CHANNELS_CONF}
+  ;;
+
+get-recordings)
+  show_schedule 1
+  ;;
+
+log)
+  show_log $2
+  ;;
+
+*)
+  echo "Pikku-DVR version 1.0 - (c) 2019 Martin Grimme"
+  echo ""
+  echo "Usage: pdvr <command> [parameter ...]"
+  echo ""
+  echo "Commands:"
+  echo ""
+  echo "  start    Start the background services."
+  echo ""
+  echo "  stop     Stop the background services."
+  echo ""
+  echo "  status   Show the current status of the background services."
+  echo ""
+  echo "  log      Show the log."
+  echo "           Parameters: <service>"
+  echo "           <service> is one of: scheduler, converter, epg-updater"
+  echo ""
+  echo "  record   Schedule a recording."
+  echo "           Parameters: <time> <duration> <channel> <name>"
+  echo ""
+  echo "  cancel   Cancel a recording."
+  echo "           Parameters: <recording ID>"
+  echo ""
+  echo "  show     Show the scheduled recordings with their recording IDs."
+  echo ""
+  echo "  epg      Browse the EPG."
+  ;;
+
+esac
+
+true

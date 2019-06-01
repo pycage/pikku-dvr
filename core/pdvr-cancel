@@ -1,0 +1,13 @@
+#! /bin/bash
+
+. `dirname $0`/../config
+. `dirname $0`/utils
+
+TIMESTAMP=$1
+
+if [ -f ${SCHEDULE}/${TIMESTAMP} ]; then
+  echo "Canceled: `format_schedule ${TIMESTAMP}`"
+  rm -f ${SCHEDULE}/${TIMESTAMP}
+else
+  echo "-- not found --"
+fi

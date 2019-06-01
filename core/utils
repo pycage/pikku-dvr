@@ -1,0 +1,38 @@
+function named_sleep()
+{
+  if [ -n "$2" ]; then
+    sleep $2 &
+  else
+    sleep 1d &
+  fi
+  PID=$!
+  echo "${PID}" > ${PIDS}/$1.pid
+  wait ${PID} >/dev/null 2>&1
+  rm -f ${PIDS}/$1.pid
+}
+
+function wakeup()
+{
+  [ -f ${PIDS}/$1.pid ] && kill `cat ${PIDS}/$1.pid`
+}
+
+function log()
+{
+  local NOW=`date +"%Y-%m-%d %H:%M:%S"`
+  echo "[${NOW}] $1"
+}
+
+function format_schedule()
+{
+  local TIMESTAMP=$1
+  local ENTRY=`cat ${SCHEDULE}/${TIMESTAMP}`
+  local DURATION=`echo "${ENTRY}" |cut -d"|" -f1`
+  local CHANNEL=`echo "${ENTRY}" |cut -d"|" -f2`
+  local NAME=`echo "${ENTRY}" |cut -d"|" -f3`
+  local UNTIL=$(( ${TIMESTAMP} + ${DURATION} ))
+
+  local TIME=`date +"%Y-%m-%d %H:%M" -d @${TIMESTAMP}`
+  local UNTIL_TIME=`date +"%H:%M" -d @${UNTIL}`
+
+  echo "[${TIME} - ${UNTIL_TIME}]  ${NAME}  <${CHANNEL}>"
+}

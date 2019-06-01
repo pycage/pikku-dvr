@@ -1,0 +1,38 @@
+#! /bin/bash
+
+CHANNEL=$1
+DURATION=$2
+NAME=$3
+
+. `dirname $0`/../config
+. `dirname $0`/utils
+
+mkdir -p ${EXPORTS}
+mkdir -p ${PIDS}
+
+FULLNAME="${NAME} - `date +'%Y-%m-%d'`"
+REC_FILE="${EXPORTS}/stream.rec"
+TS_FILE="${EXPORTS}/${FULLNAME}.ts"
+
+log "Recording '${FULLNAME}', duration ${DURATION} seconds."
+if [ ! -e /dev/dvb/adapter0/dvr0 ]; then
+  log "No DVB device available."
+  exit 1
+fi
+dvbv5-zap -c ${CHANNELS_CONF} -I zap -r "${CHANNEL}" -o "${REC_FILE}" >/dev/null 2>&1 &
+ZAP_PID=$!
+
+function at_exit()
+{
+  log "Recording finished."
+  kill ${ZAP_PID} 2>/dev/null
+  wait
+  mv "${REC_FILE}" "${TS_FILE}"
+  
+  rm -f ${PIDS}/record.pid
+  wakeup converter
+}
+trap at_exit EXIT
+trap at_exit SIGINT SIGKILL
+
+named_sleep record ${DURATION}
