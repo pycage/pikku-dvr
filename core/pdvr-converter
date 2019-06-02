@@ -25,16 +25,16 @@ while true; do
 
   for TS in `ls -t ${EXPORTS}/*.ts 2>/dev/null`; do
     FULLNAME=`basename "${TS}" | sed -e "s/.ts$//"`
-    log "Converting ${FULLNAME}."
+    log "Converting ${FULLNAME}.ts"
 
-    ffmpeg -loglevel error -y -i "${EXPORTS}/${FULLNAME}.ts" \
+    ffmpeg -loglevel fatal -y -i "${EXPORTS}/${FULLNAME}.ts" \
            -vf yadif -movflags faststart "${EXPORTS}/${FULLNAME}.mp4"
     if [ $? -eq 0 ]; then
       log "Conversion complete."
       rm "${EXPORTS}/${FULLNAME}.ts"
       mv "${EXPORTS}/${FULLNAME}.mp4" "${RECORDINGS}/${FULLNAME}.mp4"
     else
-      log "Conversion failed. Saved transport stream as ${RECORDINGS}/${FULLNAME}.ts.fail."
+      log "Error: Conversion failed. Saved transport stream as ${RECORDINGS}/${FULLNAME}.ts.fail."
       rm -f "${EXPORTS}/${FULLNAME}.mp4"
       mv "${EXPORTS}/${FULLNAME}.ts" "${RECORDINGS}/${FULLNAME}.ts.fail"
     fi

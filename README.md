@@ -4,7 +4,7 @@
 
 Just a tiny (finnish: pikku) digital video recorder for the Linux command line.
 
-* The EPG (electronic programming guide) is updated automatically
+* The EPG (electronic program guide) is updated automatically
 * Browse the EPG and schedule recordings
 * Get the recordings in MP4 format
 

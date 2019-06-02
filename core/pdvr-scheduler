@@ -102,7 +102,7 @@ while true; do
         ACTUAL_DURATION=$(( ${DURATION} + ${RECORDING_STOP_LATE} ))
         bash `dirname $0`/pdvr-record "${REC_CHANNEL}" "${ACTUAL_DURATION}" "${REC_NAME}"
       else
-        log "Missed recording of '${REC_NAME}' (${REC_CHANNEL}) at `date -d @${TIMESTAMP}`."
+        log "Error: Missed recording of '${REC_NAME}' (${REC_CHANNEL}) at `date -d @${TIMESTAMP}`."
       fi
 
       for ITEM in ${NEXT}; do

@@ -22,13 +22,13 @@ echo "$$" > ${PIDS}/epg-updater-service.pid
 while true; do
 
   if [ ! -f ${CHANNELS_CONF} ]; then
-    log "File ${CHANNELS_CONF} is missing. Aborting."
+    log "Error: File ${CHANNELS_CONF} is missing. Aborting."
     exit 1
   elif [ -z "`which dvbv5-zap`" ]; then
-    log "dvbv5-zap is missing. Aborting."
+    log "Error: dvbv5-zap is missing. Aborting."
     exit 1
   elif [ -z "`which dvbsnoop`" ]; then
-    log "dvbsnoop is missing. Aborting."
+    log "Error: dvbsnoop is missing. Aborting."
     exit 1
   fi
 
@@ -37,10 +37,15 @@ while true; do
     CHANNEL_NAME=`echo "${ENTRY}" | cut -d: -f1`
     SERVICE_ID=`echo "${ENTRY}" | cut -d: -f9`
 
-    log "Waiting."
     named_sleep epg-updater
 
     log "Updating EPG from ${CHANNEL_NAME}."
+    
+    if [ ! -e /dev/dvb/adapter0/dvr0 ]; then
+      log "Error: No DVB device available."
+      continue
+    fi
+
     dvbv5-zap -c ${CHANNELS_CONF} -I zap -r "${CHANNEL_NAME}" >/dev/null 2>&1 &
     ZAP_PID=$!
 

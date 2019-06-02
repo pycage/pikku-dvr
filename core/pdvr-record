@@ -16,7 +16,7 @@ TS_FILE="${EXPORTS}/${FULLNAME}.ts"
 
 log "Recording '${FULLNAME}', duration ${DURATION} seconds."
 if [ ! -e /dev/dvb/adapter0/dvr0 ]; then
-  log "No DVB device available."
+  log "Error: No DVB device available."
   exit 1
 fi
 dvbv5-zap -c ${CHANNELS_CONF} -I zap -r "${CHANNEL}" -o "${REC_FILE}" >/dev/null 2>&1 &

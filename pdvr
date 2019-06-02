@@ -105,15 +105,15 @@ stop)
 status)
   is_running scheduler-service \
   && echo -n "[Running]" || echo -n "[Stopped]"
-  echo " Scheduler     `tail -1 ${LOG}/scheduler.log`"
+  echo " Scheduler"
 
   is_running converter-service \
   && echo -n "[Running]" || echo -n "[Stopped]"
-  echo " Converter     `tail -1 ${LOG}/converter.log`"
+  echo " Converter"
 
   is_running epg-updater-service \
   && echo -n "[Running]" || echo -n "[Stopped]"
-  echo " EPG Updater   `tail -1 ${LOG}/epg-updater.log`"
+  echo " EPG Updater"
 
   if is_running record; then
     TIMESTAMP=`ls ${SCHEDULE} | sort -n | head -1`
@@ -200,7 +200,7 @@ log)
   echo ""
   echo "  show     Show the scheduled recordings with their recording IDs."
   echo ""
-  echo "  epg      Browse the EPG."
+  echo "  epg      Browse the electronic program guide."
   ;;
 
 esac
