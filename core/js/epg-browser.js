@@ -44,18 +44,12 @@ function getEventAtTime(epg, serviceId, atTime)
         return null;
     }
 
-    var tables = Object.keys(epg[serviceId]);
-
-    for (var i = 0; i < tables.length; ++i)
+    for (var eventId in epg[serviceId])
     {
-        var table = tables[i];
-        for (var eventId in epg[serviceId][table])
+        var evObj = epg[serviceId][eventId];
+        if (evObj.start <= atTime && evObj.start + evObj.duration > atTime)
         {
-            var evObj = epg[serviceId][table][eventId];
-            if (evObj.start <= atTime && evObj.start + evObj.duration > atTime)
-            {
-                return evObj;
-            }
+            return evObj;
         }
     }
     return null;
@@ -223,15 +217,12 @@ var EpgDisplay = function (pdvr)
     function loadEpg()
     {
         console.log("Loading EPG...");
-        m_epg = JSON.parse(modChildProcess.execSync(m_pdvr + " get-epg"));
+        m_epg = JSON.parse(modChildProcess.execSync(m_pdvr + " get-epg")).services || { };
         m_services = Object.keys(m_epg).filter(function (serviceId)
         {
             return m_epg[serviceId] &&
                    m_channelsMap[serviceId] &&
-            Object.keys(m_epg[serviceId]).reduce(function (sum, table)
-            {
-                return sum + Object.keys(m_epg[serviceId][table]).length;
-            }, 0) > 0;
+                   Object.keys(m_epg[serviceId]).length > 0;
         }).sort(function (a, b)
         {
             return m_channelsMap[a].toUpperCase() < m_channelsMap[b].toUpperCase() ? -1 : 1;
@@ -306,7 +297,7 @@ var EpgDisplay = function (pdvr)
         {
             m_currentServiceIndex = 0;
         }
-        else if (m_currentServiceIndex > m_services.length - 1)
+        else if (m_services.length > 0 && m_currentServiceIndex > m_services.length - 1)
         {
             m_currentServiceIndex = m_services.length - 1;
         }
@@ -363,20 +354,15 @@ var EpgDisplay = function (pdvr)
             eventsTimeline.insertMarker(2, rec.start, rec.duration, "#");
         });
     
-        var tables = Object.keys(m_epg[serviceId]);
-        tables.forEach(function (table)
+        for (var eventId in m_epg[serviceId])
         {
-            var events = m_epg[serviceId][table];
-            for (var eventId in events)
+            var evObj = m_epg[serviceId][eventId];
+            if (evObj.start + evObj.duration > m_startTime - 1800 &&
+                evObj.start < m_startTime + 72 * 3600)
             {
-                var evObj = events[eventId];
-                if (evObj.start + evObj.duration > m_startTime - 1800 &&
-                    evObj.start < m_startTime + 72 * 3600)
-                {
-                    eventsTimeline.insertEvent(0, evObj);
-                }
+                eventsTimeline.insertEvent(0, evObj);
             }
-        });
+        }
     
         if (currentEvent)
         {
@@ -405,8 +391,8 @@ var EpgDisplay = function (pdvr)
         var part1 = "[<] " +
                     new Date(m_startTime * 1000).toDateString() +
                     " [>]   " +
-                   "[C] Goto Channel   [S] Search";
-        var part2 = "[Q] Quit";
+                   "[S] Search";
+        var part2 = "[Esc] Quit";
         console.log(part1 +
                     formatLine(" ", cols - (part1.length + part2.length)) +
                     part2);
@@ -490,7 +476,7 @@ var EpgDisplay = function (pdvr)
         modReadline.clearScreenDown(process.stdout);
     
         // header
-        var part1 = "[Q] Back";
+        var part1 = "[Esc] Back";
         var part2 = "[R] Record";
         console.log(part1 + formatLine(" ", cols - (part1.length + part2.length)) + part2);
     
@@ -538,25 +524,22 @@ var EpgDisplay = function (pdvr)
         {
             var channelName = m_channelsMap[service];
 
-            for (var table in m_filteredEpg[service])
+            for (var event in m_filteredEpg[service])
             {
-                for (var event in m_filteredEpg[service][table])
+                var evObj = m_filteredEpg[service][event];
+                
+                console.log(channelName + " " +
+                formatTime(new Date(evObj.start * 1000)) + " - " +
+                formatTime(new Date((evObj.start + evObj.duration) * 1000)));
+                var info = evObj.short.name;
+                if (evObj.short.text !== "")
                 {
-                    var evObj = m_filteredEpg[service][table][event];
-                    
-                    console.log(channelName + " " +
-                    formatTime(new Date(evObj.start * 1000)) + " - " +
-                    formatTime(new Date((evObj.start + evObj.duration) * 1000)));
-                    var info = evObj.short.name;
-                    if (evObj.short.text !== "")
-                    {
-                        info += " (" + evObj.short.text + ")";
-                    }
-                    console.log(info.substr(0, process.stdout.columns));
-                    console.log("");
-                    //console.log(evObj.extended.text);
-                    //console.log("");
+                    info += " (" + evObj.short.text + ")";
                 }
+                console.log(info.substr(0, process.stdout.columns));
+                console.log("");
+                //console.log(evObj.extended.text);
+                //console.log("");
             }
         }
     }
@@ -600,7 +583,7 @@ var EpgDisplay = function (pdvr)
         {
             var evBefore = getEventAtTime(m_epg, m_services[m_currentServiceIndex],
                                           m_currentEvent.start - 1);
-            if (evBefore)
+            if (evBefore && evBefore.start < m_startTime)
             {
                 m_startTime = evBefore.start;
             }
@@ -624,7 +607,7 @@ var EpgDisplay = function (pdvr)
         {
             var nextEv = getEventAtTime(m_epg, m_services[m_currentServiceIndex],
                                         m_currentEvent.start + m_currentEvent.duration + 1);
-            if (nextEv)
+            if (nextEv && nextEv.start > m_startTime)
             {
                 m_startTime = nextEv.start;
             }
@@ -677,27 +660,20 @@ var EpgDisplay = function (pdvr)
         m_filteredEpg = { };
         for (var service in m_epg)
         {
-            for (var table in m_epg[service])
+            for (var event in m_epg[service])
             {
-                for (var event in m_epg[service][table])
-                {
-                    var evObj = m_epg[service][table][event];
-                    var name = (evObj.short || { }).name || "";
-                    var text = (evObj.short || { }).text || "";
-                    var info = (evObj.extended || { }).text || "";
+                var evObj = m_epg[service][event];
+                var name = (evObj.short || { }).name || "";
+                var text = (evObj.short || { }).text || "";
+                var info = (evObj.extended || { }).text || "";
 
-                    if (name.match(re) || text.match(re) || info.match(re))
+                if (name.match(re) || text.match(re) || info.match(re))
+                {
+                    if (! m_filteredEpg[service])
                     {
-                        if (! m_filteredEpg[service])
-                        {
-                            m_filteredEpg[service] = { };
-                        }
-                        if (! m_filteredEpg[service][table])
-                        {
-                            m_filteredEpg[service][table] = { };
-                        }
-                        m_filteredEpg[service][table][event] = evObj;
+                        m_filteredEpg[service] = { };
                     }
+                    m_filteredEpg[service][event] = evObj;
                 }
             }
         }

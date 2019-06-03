@@ -176,7 +176,7 @@ log)
   ;;
 
 *)
-  echo "Pikku-DVR version 1.0 - (c) 2019 Martin Grimme"
+  echo "Pikku-DVR version 1.0rc - (c) 2019 Martin Grimme"
   echo ""
   echo "Usage: pdvr <command> [parameter ...]"
   echo ""
