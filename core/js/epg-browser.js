@@ -34,27 +34,6 @@ function formatLine(c, length)
     return out;
 }
 
-/* Retrieves the event of the given service at the given time.
- * Returns null if no event was found.
- */
-function getEventAtTime(epg, serviceId, atTime)
-{
-    if (! epg[serviceId])
-    {
-        return null;
-    }
-
-    for (var eventId in epg[serviceId])
-    {
-        var evObj = epg[serviceId][eventId];
-        if (evObj.start <= atTime && evObj.start + evObj.duration > atTime)
-        {
-            return evObj;
-        }
-    }
-    return null;
-}
-
 var Timeline = function (start, width, scale)
 {
     var m_start = start;
@@ -175,14 +154,18 @@ var EpgDisplay = function (pdvr)
     var m_pdvr = pdvr;
     var m_channelsMap = { };
     var m_epg = { };
+
     var m_filteredEpg = { };
+    var m_filterTerm = "";
+    
     var m_services = [];
     var m_recordings = [];
 
     var m_now = toTimestamp(new Date());
     var m_startTime = m_now;
-    var m_currentServiceIndex = 0;
-    var m_serviceOffset = 0;
+
+    var m_currentSelectionIndex = 0;
+    var m_selectionOffset = 0;
 
     var m_currentEvent = null;
 
@@ -250,6 +233,98 @@ var EpgDisplay = function (pdvr)
         });
     }
 
+    /* Returns the possibly filtered list of service IDs.
+     */
+    function services()
+    {
+        if (Object.keys(m_filteredEpg).length > 0)
+        {
+            return Object.keys(m_filteredEpg).sort(function (a, b)
+            {
+                return m_channelsMap[a] < m_channelsMap[b] ? -1 : 1;
+            });
+        }
+        else
+        {
+            return m_services;
+        }
+    }
+
+    /* Returns the possibly filtered list of event IDs in the given service.
+     */
+    function events(serviceId)
+    {
+        function cmp(a, b)
+        {
+            return m_epg[serviceId][a].start - m_epg[serviceId][b].start;
+        }
+
+        function timeFilter(eventId)
+        {
+            var evObj = m_epg[serviceId][eventId];
+            return evObj.start + evObj.duration > m_now;
+        }
+
+        if (Object.keys(m_filteredEpg).length > 0 && m_filteredEpg[serviceId])
+        {
+            return Object.keys(m_filteredEpg[serviceId])
+            .filter(timeFilter)
+            .sort(cmp);
+        }
+        else if (m_epg[serviceId])
+        {
+            return Object.keys(m_epg[serviceId])
+            .filter(timeFilter)
+            .sort(cmp);
+        }
+        else
+        {
+            return [];
+        }
+    }
+
+    /* Retrieves the event of the possibly filtered given service at the
+     * given time.
+     * Returns null if no event was found.
+     */
+    function eventAt(serviceId, atTime)
+    {
+        var evs = events(serviceId).filter(function (eventId)
+        {
+            var evObj = m_epg[serviceId][eventId];
+            return evObj.start <= atTime &&
+                   evObj.start + evObj.duration > atTime;
+        });
+        return evs ? m_epg[serviceId][evs[0]]
+                   : null;
+    }
+
+    /* Skips to the nearest event.
+     */
+    function skipToNearestEvent()
+    {
+        function distanceTo(eventId)
+        {
+            var evObj = m_epg[svcId][eventId];
+            return Math.min(Math.abs(evObj.start - m_startTime),
+                            Math.abs(evObj.start + evObj.duration - m_startTime));
+        }
+
+        var svcId = services()[m_currentSelectionIndex];
+        var evs = events(svcId).sort(function (a, b)
+        {
+            return distanceTo(a) - distanceTo(b);
+        });
+        if (evs)
+        {
+            var nearest = m_epg[svcId][evs[0]];
+            if (nearest)
+            {
+                m_startTime = nearest.start;
+            }
+        }        
+    }
+
     /* Schedules the recording of the given event.
      */
     function scheduleEvent(serviceId, ev)
@@ -293,25 +368,30 @@ var EpgDisplay = function (pdvr)
     {
         if (m_startTime < m_now) m_startTime = m_now;
 
-        if (m_currentServiceIndex < 0)
+        if (m_currentSelectionIndex < 0)
         {
-            m_currentServiceIndex = 0;
+            m_currentSelectionIndex = 0;
         }
-        else if (m_services.length > 0 && m_currentServiceIndex > m_services.length - 1)
+        else if (services().length > 0 && m_currentSelectionIndex > services().length - 1)
         {
-            m_currentServiceIndex = m_services.length - 1;
-        }
-
-        if (m_currentServiceIndex < m_serviceOffset)
-        {
-            m_serviceOffset = m_currentServiceIndex;
-        }
-        else if (m_currentServiceIndex > m_serviceOffset + m_rows - 1)
-        {
-            m_serviceOffset = m_currentServiceIndex - m_rows + 1;
+            m_currentSelectionIndex = services().length - 1;
         }
 
-        m_currentEvent = getEventAtTime(m_epg, m_services[m_currentServiceIndex], m_startTime);
+        if (m_currentSelectionIndex < m_selectionOffset)
+        {
+            m_selectionOffset = m_currentSelectionIndex;
+        }
+        else if (m_currentSelectionIndex > m_selectionOffset + m_rows - 1)
+        {
+            m_selectionOffset = m_currentSelectionIndex - m_rows + 1;
+        }
+
+        m_currentEvent = eventAt(services()[m_currentSelectionIndex], m_startTime);
+        if (! m_currentEvent)
+        {
+            skipToNearestEvent();
+            m_currentEvent = eventAt(services()[m_currentSelectionIndex], m_startTime);
+        }
 
         m_rows = Math.floor((process.stdout.rows - 10) / 6);
         render();
@@ -328,9 +408,6 @@ var EpgDisplay = function (pdvr)
             break;
         case "info":
             renderInfo();
-            break;
-        case "search":
-            renderSearch();
             break;
         }
     }
@@ -356,6 +433,13 @@ var EpgDisplay = function (pdvr)
     
         for (var eventId in m_epg[serviceId])
         {
+            if (Object.keys(m_filteredEpg).length > 0 &&
+                (! m_filteredEpg[serviceId] ||
+                 ! m_filteredEpg[serviceId][eventId]))
+            {
+                continue;
+            }
+
             var evObj = m_epg[serviceId][eventId];
             if (evObj.start + evObj.duration > m_startTime - 1800 &&
                 evObj.start < m_startTime + 72 * 3600)
@@ -390,8 +474,15 @@ var EpgDisplay = function (pdvr)
         // header
         var part1 = "[<] " +
                     new Date(m_startTime * 1000).toDateString() +
-                    " [>]   " +
-                   "[S] Search";
+                    " [>]   ";
+        if (m_filterTerm !== "")
+        {
+            part1 += "[S] Search: [" + m_filterTerm + " |X]";
+        }
+        else
+        {
+            part1 += "[S] Search";
+        }
         var part2 = "[Esc] Quit";
         console.log(part1 +
                     formatLine(" ", cols - (part1.length + part2.length)) +
@@ -399,7 +490,7 @@ var EpgDisplay = function (pdvr)
     
         console.log(formatLine("_", process.stdout.columns));
         
-        var currentServiceId = m_services[m_currentServiceIndex];
+        var currentServiceId = services()[m_currentSelectionIndex];
         var currentChannelName = m_channelsMap[currentServiceId];
     
         // event info
@@ -441,9 +532,9 @@ var EpgDisplay = function (pdvr)
         console.log("");
     
         // channels
-        for (var i = 0; i < m_rows && i < m_services.length - m_serviceOffset; ++i)
+        for (var i = 0; i < m_rows && i < services().length - m_selectionOffset; ++i)
         {
-            var serviceId = m_services[m_serviceOffset + i];
+            var serviceId = services()[m_selectionOffset + i];
             var channelName = m_channelsMap[serviceId];
             if (serviceId === currentServiceId)
             {
@@ -454,7 +545,7 @@ var EpgDisplay = function (pdvr)
                 console.log(" " + channelName);
             }
             console.log(formatLine("_", process.stdout.columns));
-            if (m_serviceOffset + i === m_currentServiceIndex)
+            if (m_selectionOffset + i === m_currentSelectionIndex)
             {
                 renderChannel(serviceId, m_currentEvent);
             }
@@ -482,7 +573,7 @@ var EpgDisplay = function (pdvr)
     
         console.log(formatLine("_", process.stdout.columns));
         
-        var currentServiceId = m_services[m_currentServiceIndex];
+        var currentServiceId = services()[m_currentSelectionIndex];
         var currentChannelName = m_channelsMap[currentServiceId];
     
         // event info
@@ -509,41 +600,6 @@ var EpgDisplay = function (pdvr)
         }
     }
 
-    function renderSearch()
-    {
-        var cols = process.stdout.columns;
-
-        modReadline.cursorTo(process.stdout, 0, 0);
-        modReadline.clearScreenDown(process.stdout);
-    
-        // header
-        console.log("[Esc] Back");
-        console.log(formatLine("_", process.stdout.columns));
-        
-        for (var service in m_filteredEpg)
-        {
-            var channelName = m_channelsMap[service];
-
-            for (var event in m_filteredEpg[service])
-            {
-                var evObj = m_filteredEpg[service][event];
-                
-                console.log(channelName + " " +
-                formatTime(new Date(evObj.start * 1000)) + " - " +
-                formatTime(new Date((evObj.start + evObj.duration) * 1000)));
-                var info = evObj.short.name;
-                if (evObj.short.text !== "")
-                {
-                    info += " (" + evObj.short.text + ")";
-                }
-                console.log(info.substr(0, process.stdout.columns));
-                console.log("");
-                //console.log(evObj.extended.text);
-                //console.log("");
-            }
-        }
-    }
-
     /* Changes the display mode.
      */
     this.setDisplayMode = function (mode)
@@ -563,7 +619,7 @@ var EpgDisplay = function (pdvr)
      */
     this.previousChannel = function ()
     {
-        --m_currentServiceIndex;
+        --m_currentSelectionIndex;
         update();
     };
 
@@ -571,7 +627,7 @@ var EpgDisplay = function (pdvr)
      */
     this.nextChannel = function ()
     {
-        ++m_currentServiceIndex;
+        ++m_currentSelectionIndex;
         update();
     };
 
@@ -581,22 +637,15 @@ var EpgDisplay = function (pdvr)
     {
         if (m_currentEvent)
         {
-            var evBefore = getEventAtTime(m_epg, m_services[m_currentServiceIndex],
-                                          m_currentEvent.start - 1);
-            if (evBefore && evBefore.start < m_startTime)
+            var svcId = services()[m_currentSelectionIndex];
+            var evs = events(svcId);
+            var idx = evs.indexOf("" + m_currentEvent.eventId);
+            if (idx > 0)
             {
-                m_startTime = evBefore.start;
-            }
-            else
-            {
-                m_startTime -= 600;
+                m_startTime = m_epg[svcId][evs[idx - 1]].start;
+                update();
             }
         }
-        else
-        {
-            m_startTime -= 600;
-        }
-        update();
     };
 
     /* Skips to the next show.
@@ -605,22 +654,15 @@ var EpgDisplay = function (pdvr)
     {
         if (m_currentEvent)
         {
-            var nextEv = getEventAtTime(m_epg, m_services[m_currentServiceIndex],
-                                        m_currentEvent.start + m_currentEvent.duration + 1);
-            if (nextEv && nextEv.start > m_startTime)
+            var svcId = services()[m_currentSelectionIndex];
+            var evs = events(svcId);
+            var idx = evs.indexOf("" + m_currentEvent.eventId);
+            if (idx >= 0 && idx < evs.length - 1)
             {
-                m_startTime = nextEv.start;
-            }
-            else
-            {
-                m_startTime += 600;
+                m_startTime = m_epg[svcId][evs[idx + 1]].start;
+                update();
             }
         }
-        else
-        {
-            m_startTime += 600;
-        }
-        update();
     };
 
     /* Skips to the previous day.
@@ -645,7 +687,7 @@ var EpgDisplay = function (pdvr)
     {
         if (m_currentEvent)
         {
-            scheduleEvent(m_services[m_currentServiceIndex], m_currentEvent);
+            scheduleEvent(services()[m_currentSelectionIndex], m_currentEvent);
             loadRecordings();
             update();
         }
@@ -653,11 +695,21 @@ var EpgDisplay = function (pdvr)
 
     /* Filters the EPG for the given search term.
      */
-    this.filter = function (term)
+    this.setFilter = function (term)
     {
-        var re = new RegExp(term, "i");
-
         m_filteredEpg = { };
+        m_filterTerm = term;
+
+        m_currentSelectionIndex = 0;
+        m_startTime = m_now;
+        
+        if (term === "")
+        {
+            update();
+            return;
+        }
+        
+        var re = new RegExp(term, "i");
         for (var service in m_epg)
         {
             for (var event in m_epg[service])
@@ -666,6 +718,11 @@ var EpgDisplay = function (pdvr)
                 var name = (evObj.short || { }).name || "";
                 var text = (evObj.short || { }).text || "";
                 var info = (evObj.extended || { }).text || "";
+
+                if (evObj.start + evObj.duration < m_now)
+                {
+                    continue;
+                }
 
                 if (name.match(re) || text.match(re) || info.match(re))
                 {
@@ -677,6 +734,8 @@ var EpgDisplay = function (pdvr)
                 }
             }
         }
+
+        update();
     };
 };
 
@@ -692,12 +751,6 @@ const rl = modReadline.createInterface({
     input: process.stdin,
     output: process.stdout
 });
-/*
-rl.on("SIGINT", function ()
-{
-    process.exit(0);
-});
-*/
 
 var pdvr = process.argv[2];
 if (! pdvr || ! modFs.existsSync(pdvr))
@@ -707,8 +760,6 @@ if (! pdvr || ! modFs.existsSync(pdvr))
 }
 
 var epgDisplay = new EpgDisplay(pdvr);
-//modReadline.emitKeypressEvents(process.stdin);
-//process.stdin.setRawMode(true);
 var isPrompt = false;
 rl.input.on("keypress", function (char, key)
 {
@@ -716,8 +767,6 @@ rl.input.on("keypress", function (char, key)
     {
         return;
     }
-
-    //modReadline.clearLine(rl.input, -1);
 
     if (epgDisplay.displayMode() === "epg")
     {
@@ -764,12 +813,19 @@ rl.input.on("keypress", function (char, key)
         else if (key.name === "s")
         {
             isPrompt = true;
+            modReadline.clearLine(process.stdout, -1);
+            rl.clearLine();
+            modReadline.cursorTo(process.stdout, 0, 0);
+            modReadline.clearScreenDown(process.stdout);
             rl.question("Search for: ", function (term)
             {
                 isPrompt = false;
-                epgDisplay.filter(term);
-                epgDisplay.setDisplayMode("search");
+                epgDisplay.setFilter(term);
             });
+        }
+        else if (key.name === "x")
+        {
+            epgDisplay.setFilter("");
         }
         else if (key.name === "escape" || key.name === "q")
         {
