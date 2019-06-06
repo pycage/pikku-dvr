@@ -34,6 +34,141 @@ function formatLine(c, length)
     return out;
 }
 
+var Colors = {
+    Black: 0,
+    Red: 1,
+    Green: 2,
+    Yellow: 3,
+    Blue: 4,
+    Magenta: 5,
+    Cyan: 6,
+    White: 7
+};
+
+/* Represents a block of formatted lines.
+ */
+var FormattedBlock = function (width, fg, bg)
+{    
+    var that = this;
+    var m_width = width;
+    var m_lines = [];
+    var m_line = 0;
+    var m_col = 0;
+    var m_defaultFg = fg;
+    var m_defaultBg = bg;
+    var m_fg = fg;
+    var m_bg = bg;
+
+    requireLine(0);
+
+    function requireLine(n)
+    {
+        while (m_lines.length < n + 1)
+        {
+            m_lines.push([]);
+        }
+    }
+
+    /* Moves the cursor to the given position.
+     */
+    this.moveTo = function (line, col)
+    {
+        requireLine(line);
+        m_line = line;
+        m_col = col; 
+    };
+
+    this.currentLine = function () { return m_line; };
+    this.currentColumn = function () { return m_col; };
+
+    /* Sets the current foreground and background colors.
+     */
+    this.color = function (fg, bg)
+    {
+        m_fg = fg;
+        m_bg = bg;
+    };
+
+    /* Writes the given string to the current cursor position
+     * and moves the cursor. If rtl is true, the string is written
+     * right-aligned and the cursor moves to the left.
+     */
+    this.write = function (s, rtl)
+    {
+        var line = m_line;
+        var col = rtl ? m_col - s.length : m_col;
+
+        if (col + s.length <= 0 || col >= m_width)
+        {
+            return;
+        }
+
+        if (col < 0)
+        {
+            s = s.substr(-col);
+            col = 0;
+        }
+        if (col + s.length >= m_width)
+        {
+            s = s.substr(0, m_width - col);
+        }
+        m_lines[line].push([col, s, m_fg, m_bg]);
+        m_col = rtl ? col : col + s.length;
+    };
+
+    this.writeButton = function (s, rtl)
+    {
+        var fg = m_fg;
+        var bg = m_bg;
+        that.color(Colors.White, Colors.Blue);
+        that.write(s, rtl);
+        that.color(fg, bg);
+    };
+
+    /* Writes this block to stdout.
+     */
+    this.render = function ()
+    {
+        m_lines.forEach(function (line)
+        {
+            var pos = 0;
+            var s = "";
+            s += "\x1b[" + (30 + m_defaultFg) + "m";
+            s += "\x1b[" + (40 + m_defaultBg) + "m";
+
+            line.sort(function (a, b)
+            {
+                return a[0] - b[0];
+            })
+            .forEach(function (item)
+            {
+                if (item[0] < pos)
+                {
+                    return;
+                }
+                while (pos < item[0])
+                {
+                    s += " ";
+                    ++pos;
+                }
+
+                var fg = item[2];
+                var bg = item[3];
+                if (fg !== m_defaultFg) s += "\x1b[" + (30 + fg) + "m";
+                if (bg !== m_defaultBg) s += "\x1b[" + (40 + bg) + "m";
+                s += item[1];
+                if (fg !== m_defaultFg) s += "\x1b[" + (30 + m_defaultFg) + "m";
+                if (bg !== m_defaultBg) s += "\x1b[" + (40 + m_defaultBg) + "m";
+
+                pos += item[1].length;
+            });
+            for (var c = pos; c < m_width; ++c) s += " ";
+
+            console.log(s + "\x1b[0m");
+        });
+    };
+}
+
 var Timeline = function (start, width, scale)
 {
     var m_start = start;
@@ -41,36 +176,18 @@ var Timeline = function (start, width, scale)
     var m_duration = (width - 1) / m_scale;
     var m_width = width;
 
-    var m_lines = [];
-
-    function requireLine(n)
+    function padded(s, length)
     {
-        while (m_lines.length < n + 1)
+        while (s.length < length)
         {
-            var line = "";
-            for (var i = 0; i < m_width; ++i)
-            {
-                line += " ";
-            }
-            m_lines.push(line);
+            s += " ";
         }
-    }
-
-    function writeLine(n, at, s)
-    {
-        requireLine(n);
-        for (var i = 0; i < s.length; ++i)
-        {
-            if (at + i >= 0 && at + i < m_lines[n].length)
-            {
-                m_lines[n] = m_lines[n].substr(0, at + i) + s[i] + m_lines[n].substr(at + i + 1);
-            }
-        }
+        return s;
     }
 
     /* Inserts the given timestamp on the timeline.
      */
-    this.insertTimestamp = function (line, timestamp)
+    this.insertTimestamp = function (block, timestamp)
     {
         var offset = Math.floor((timestamp - m_start) * m_scale);
         var title = formatTime(new Date(timestamp * 1000));
@@ -80,12 +197,13 @@ var Timeline = function (start, width, scale)
             return;
         }
 
-        writeLine(line, offset, "|" + title);
+        block.moveTo(block.currentLine(), offset);
+        block.write("|" + title);
     };
 
     /* Inserts the given text on the timeline.
      */
-    this.insertText = function (line, timestamp, text)
+    this.insertText = function (block, timestamp, text)
     {
         var offset = Math.floor((timestamp - m_start) * m_scale);
 
@@ -94,12 +212,13 @@ var Timeline = function (start, width, scale)
             return;
         }
 
-        writeLine(line, offset, text);
+        block.moveTo(block.currentLine(), offset);
+        block.write(text);
     };
 
     /* Inserts the given marker on the timeline.
      */
-    this.insertMarker = function (line, timestamp, duration, marker)
+    this.insertMarker = function (block, timestamp, duration, marker)
     {
         var offset = Math.floor((timestamp - m_start) * m_scale);
         var length = Math.floor(duration * m_scale);
@@ -109,12 +228,13 @@ var Timeline = function (start, width, scale)
         {
             return;
         }
-        writeLine(line, offset, text);
+        block.moveTo(block.currentLine(), offset);
+        block.write(text);
     };
 
     /* Inserts the given event on the timeline.
      */
-    this.insertEvent = function (line, event)
+    this.insertEvent = function (block, event)
     {
         var offset = Math.floor((event.start - m_start) * m_scale);
         var length = Math.floor(event.duration * m_scale);
@@ -129,19 +249,19 @@ var Timeline = function (start, width, scale)
 
         if (! event.scrambled)
         {
-            writeLine(line, offset, "|" + title);
-            writeLine(line + 1, offset, "|" + subtitle);
+            block.moveTo(block.currentLine(), offset);
+            block.write(padded("|" + title, length));
+            block.moveTo(block.currentLine() + 1, offset);
+            block.write(padded("|" + subtitle, length));
         }
         else
         {
-            writeLine(line, offset, "|" + title);
-            writeLine(line + 1, offset, "|" + subtitle);
+            block.moveTo(block.currentLine(), offset);
+            block.write(padded("|" + title, length));
+            block.moveTo(block.currentLine() + 1, offset);
+            block.write(padded("|" + subtitle, length));
         }
-    };
-
-    this.render = function ()
-    {
-        m_lines.forEach(function (line) { console.log(line); });
+        block.moveTo(block.currentLine() - 1, 0);
     };
 };
 
@@ -393,7 +513,7 @@ var EpgDisplay = function (pdvr)
             m_currentEvent = eventAt(services()[m_currentSelectionIndex], m_startTime);
         }
 
-        m_rows = Math.floor((process.stdout.rows - 10) / 6);
+        m_rows = Math.floor((process.stdout.rows - 8) / 4);
         render();
     }
 
@@ -421,15 +541,8 @@ var EpgDisplay = function (pdvr)
             return;
         }
     
+        var blk = new FormattedBlock(process.stdout.columns, Colors.White, Colors.Black);
         var eventsTimeline = new Timeline(m_startTime - 1800, process.stdout.columns, m_colsPerHour / 3600);
-        
-        m_recordings.filter(function (rec)
-        {
-            return rec.channel === m_channelsMap[serviceId];
-        }).forEach(function (rec)
-        {
-            eventsTimeline.insertMarker(2, rec.start, rec.duration, "#");
-        });
     
         for (var eventId in m_epg[serviceId])
         {
@@ -439,27 +552,37 @@ var EpgDisplay = function (pdvr)
             {
                 continue;
             }
-
+            
             var evObj = m_epg[serviceId][eventId];
+
+            if (currentEvent && evObj.eventId === currentEvent.eventId)
+            {
+                blk.color(Colors.White, Colors.Red);
+            }
+            else
+            {
+                blk.color(Colors.White, Colors.Blue);
+            }
+
             if (evObj.start + evObj.duration > m_startTime - 1800 &&
                 evObj.start < m_startTime + 72 * 3600)
             {
-                eventsTimeline.insertEvent(0, evObj);
+                eventsTimeline.insertEvent(blk, evObj);
             }
         }
     
-        if (currentEvent)
+        blk.moveTo(blk.currentLine() + 2);
+
+        blk.color(Colors.White, Colors.Yellow);
+        m_recordings.filter(function (rec)
         {
-            eventsTimeline.insertMarker(2,
-                currentEvent.start,
-                currentEvent.duration,
-                "^");
-        }
-        else
+            return rec.channel === m_channelsMap[serviceId];
+        }).forEach(function (rec)
         {
-            eventsTimeline.insertTimestamp(2, 0);
-        }
-        eventsTimeline.render();
+            eventsTimeline.insertMarker(blk, rec.start, rec.duration, " ");
+        });
+
+        blk.render();
     }
 
     /* Renders the EPG display.
@@ -469,82 +592,94 @@ var EpgDisplay = function (pdvr)
         var cols = process.stdout.columns;
 
         modReadline.cursorTo(process.stdout, 0, 0);
-        modReadline.clearScreenDown(process.stdout);
+        //modReadline.clearScreenDown(process.stdout);
     
         // header
-        var part1 = "[<] " +
-                    new Date(m_startTime * 1000).toDateString() +
-                    " [>]   ";
+        var blk = new FormattedBlock(cols, Colors.Black, Colors.White);
+        blk.writeButton("[<]");
+        blk.write(" " + new Date(m_startTime * 1000).toDateString() + " ");
+        blk.writeButton("[>]");
+        blk.write("   ");
+        blk.writeButton("[S] Search");
         if (m_filterTerm !== "")
         {
-            part1 += "[S] Search: [" + m_filterTerm + " |X]";
+            blk.write(" [" + m_filterTerm + "] ");
+            blk.writeButton("[X]");
+            blk.write("");
         }
-        else
-        {
-            part1 += "[S] Search";
-        }
-        var part2 = "[Esc] Quit";
-        console.log(part1 +
-                    formatLine(" ", cols - (part1.length + part2.length)) +
-                    part2);
+        blk.moveTo(0, cols);
+        blk.writeButton("[Esc] Quit", true);
+        blk.render();
     
-        console.log(formatLine("_", process.stdout.columns));
-        
         var currentServiceId = services()[m_currentSelectionIndex];
         var currentChannelName = m_channelsMap[currentServiceId];
     
         // event info
+        blk = new FormattedBlock(cols, Colors.Black, Colors.White);
+        blk.moveTo(1, 0);
+        blk.color(Colors.Blue, Colors.White);
+        blk.write(currentChannelName + " ");
+        blk.color(Colors.Black, Colors.White);
+
         if (m_currentEvent)
         {
-            part1 = currentChannelName + " " +
-                    formatTime(new Date(m_currentEvent.start * 1000)) + " - " +
-                    formatTime(new Date((m_currentEvent.start + m_currentEvent.duration) * 1000));
-            part2 = "[I] Info   [R] Record";
-            console.log(part1 + formatLine(" ", cols - (part1.length + part2.length)) + part2);
+            blk.write(formatTime(new Date(m_currentEvent.start * 1000)) + " - " +
+                      formatTime(new Date((m_currentEvent.start + m_currentEvent.duration) * 1000)));
+            blk.moveTo(1, cols);
+            blk.writeButton("[I] Info", true);
+            blk.write("   ", true);
+            blk.writeButton("[R] Record", true);
+            
             var info = m_currentEvent.short.name;
             if (m_currentEvent.short.text !== "")
             {
                 info += " (" + m_currentEvent.short.text + ")";
             }
-            console.log(info.substr(0, process.stdout.columns));
+            blk.moveTo(2, 0);
+            blk.write(info);
         }
         else
         {
-            console.log(currentChannelName);
-            console.log("-- no information available --");
+            blk.moveTo(2, 0);
+            blk.write("-- no information available --");
         }
-        console.log(formatLine("_", process.stdout.columns));
+        blk.moveTo(3, 0);
+        blk.render();
     
         // hours timeline
+        blk = new FormattedBlock(cols, Colors.White, Colors.Black);
         var timeLine = new Timeline(m_startTime - 1800, process.stdout.columns, m_colsPerHour / 3600);
         for (var t = m_startTime - (m_startTime % 3600); t < m_startTime + process.stdout.columns / (m_colsPerHour / 3600); t += 1800)
         {
-            timeLine.insertTimestamp(0, t);
+            timeLine.insertTimestamp(blk, t);
         }
         // recordings timeline
+        blk.moveTo(1, 0);
+        blk.color(Colors.Black, Colors.Yellow)
         m_recordings.forEach(function (rec)
         {
-            timeLine.insertMarker(1, rec.start, rec.duration, "#");
+            timeLine.insertMarker(blk, rec.start, rec.duration, " ");
         });
-        timeLine.insertText(1, toTimestamp(new Date()), "^")
-        timeLine.render();
-        console.log("");
-        console.log("");
+        blk.color(Colors.White, Colors.Black);
+        timeLine.insertText(blk, toTimestamp(new Date()), "^")
+        blk.render();
     
         // channels
         for (var i = 0; i < m_rows && i < services().length - m_selectionOffset; ++i)
         {
             var serviceId = services()[m_selectionOffset + i];
             var channelName = m_channelsMap[serviceId];
+
+            var fg = Colors.White;
+            var bg = Colors.Black;
             if (serviceId === currentServiceId)
             {
-                console.log("[" + channelName + "]");
+                fg = Colors.White;
+                bg = Colors.Red;
             }
-            else
-            {
-                console.log(" " + channelName);
-            }
-            console.log(formatLine("_", process.stdout.columns));
+            blk = new FormattedBlock(cols, fg, bg);
+            blk.write(channelName);
+            blk.render();
             if (m_selectionOffset + i === m_currentSelectionIndex)
             {
                 renderChannel(serviceId, m_currentEvent);
@@ -553,8 +688,9 @@ var EpgDisplay = function (pdvr)
             {
                 renderChannel(serviceId, null);
             }
-            console.log("");
         }
+
+        modReadline.clearScreenDown(process.stdout);
     }
 
     /* Renders the info display.
