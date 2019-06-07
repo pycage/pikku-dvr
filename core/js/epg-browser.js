@@ -268,7 +268,7 @@ var Timeline = function (start, width, scale)
 
 var EpgDisplay = function (pdvr)
 {
-    // display mode: epg | info | search
+    // display mode: epg | info
     var m_displayMode = "epg";
 
     var m_pdvr = pdvr;
@@ -281,8 +281,8 @@ var EpgDisplay = function (pdvr)
     var m_services = [];
     var m_recordings = [];
 
-    var m_now = toTimestamp(new Date());
-    var m_startTime = m_now;
+    var m_now = 0;
+    var m_startTime = 0;
 
     var m_currentSelectionIndex = 0;
     var m_selectionOffset = 0;
@@ -486,6 +486,8 @@ var EpgDisplay = function (pdvr)
      */
     function update()
     {
+        m_now = toTimestamp(new Date());
+
         if (m_startTime < m_now) m_startTime = m_now;
 
         if (m_currentSelectionIndex < 0)
@@ -521,6 +523,8 @@ var EpgDisplay = function (pdvr)
      */
     function render()
     {
+        modReadline.cursorTo(process.stdout, 0, 0);
+
         switch (m_displayMode)
         {
         case "epg":
@@ -530,31 +534,25 @@ var EpgDisplay = function (pdvr)
             renderInfo();
             break;
         }
+
+        modReadline.clearScreenDown(process.stdout);
     }
 
     /* Renders the given channel, highlighting the given event if any.
      */
     function renderChannel(serviceId, currentEvent)
-    {
-        if (! m_epg[serviceId])
-        {
-            return;
-        }
-    
-        var blk = new FormattedBlock(process.stdout.columns, Colors.White, Colors.Black);
-        var eventsTimeline = new Timeline(m_startTime - 1800, process.stdout.columns, m_colsPerHour / 3600);
-    
-        for (var eventId in m_epg[serviceId])
-        {
-            if (Object.keys(m_filteredEpg).length > 0 &&
-                (! m_filteredEpg[serviceId] ||
-                 ! m_filteredEpg[serviceId][eventId]))
-            {
-                continue;
-            }
-            
-            var evObj = m_epg[serviceId][eventId];
+    {   
+        var cols = process.stdout.columns;
+        var visibleDuration = cols / (m_colsPerHour / 3600);
 
+        var blk = new FormattedBlock(cols, Colors.White, Colors.Black);
+        var eventsTimeline = new Timeline(m_startTime - 1800, cols, m_colsPerHour / 3600);
+    
+        // render the events
+        events(serviceId).forEach(function (eventId)
+        {
+            var evObj = m_epg[serviceId][eventId];
+    
             if (currentEvent && evObj.eventId === currentEvent.eventId)
             {
                 blk.color(Colors.White, Colors.Red);
@@ -563,21 +561,22 @@ var EpgDisplay = function (pdvr)
             {
                 blk.color(Colors.White, Colors.Blue);
             }
-
+    
             if (evObj.start + evObj.duration > m_startTime - 1800 &&
-                evObj.start < m_startTime + 72 * 3600)
+                evObj.start < m_startTime + visibleDuration)
             {
                 eventsTimeline.insertEvent(blk, evObj);
             }
-        }
+        });
     
+        // render recording markers
         blk.moveTo(blk.currentLine() + 2);
-
         blk.color(Colors.White, Colors.Yellow);
         m_recordings.filter(function (rec)
         {
             return rec.channel === m_channelsMap[serviceId];
-        }).forEach(function (rec)
+        })
+        .forEach(function (rec)
         {
             eventsTimeline.insertMarker(blk, rec.start, rec.duration, " ");
         });
@@ -590,11 +589,8 @@ var EpgDisplay = function (pdvr)
     function renderEpg()
     {
         var cols = process.stdout.columns;
-
-        modReadline.cursorTo(process.stdout, 0, 0);
-        //modReadline.clearScreenDown(process.stdout);
     
-        // header
+        // render header
         var blk = new FormattedBlock(cols, Colors.Black, Colors.White);
         blk.writeButton("[<]");
         blk.write(" " + new Date(m_startTime * 1000).toDateString() + " ");
@@ -614,7 +610,7 @@ var EpgDisplay = function (pdvr)
         var currentServiceId = services()[m_currentSelectionIndex];
         var currentChannelName = m_channelsMap[currentServiceId];
     
-        // event info
+        // render event info
         blk = new FormattedBlock(cols, Colors.Black, Colors.White);
         blk.moveTo(1, 0);
         blk.color(Colors.Blue, Colors.White);
@@ -646,14 +642,13 @@ var EpgDisplay = function (pdvr)
         blk.moveTo(3, 0);
         blk.render();
     
-        // hours timeline
+        // render hours and recordings timeline
         blk = new FormattedBlock(cols, Colors.White, Colors.Black);
-        var timeLine = new Timeline(m_startTime - 1800, process.stdout.columns, m_colsPerHour / 3600);
-        for (var t = m_startTime - (m_startTime % 3600); t < m_startTime + process.stdout.columns / (m_colsPerHour / 3600); t += 1800)
+        var timeLine = new Timeline(m_startTime - 1800, cols, m_colsPerHour / 3600);
+        for (var t = m_startTime - (m_startTime % 3600); t < m_startTime + cols / (m_colsPerHour / 3600); t += 1800)
         {
             timeLine.insertTimestamp(blk, t);
         }
-        // recordings timeline
         blk.moveTo(1, 0);
         blk.color(Colors.Black, Colors.Yellow)
         m_recordings.forEach(function (rec)
@@ -664,19 +659,17 @@ var EpgDisplay = function (pdvr)
         timeLine.insertText(blk, toTimestamp(new Date()), "^")
         blk.render();
     
-        // channels
-        for (var i = 0; i < m_rows && i < services().length - m_selectionOffset; ++i)
+        // render channels
+        var serviceIds = services();
+        for (var i = 0; i < m_rows && i < serviceIds.length - m_selectionOffset; ++i)
         {
-            var serviceId = services()[m_selectionOffset + i];
+            var serviceId = serviceIds[m_selectionOffset + i];
             var channelName = m_channelsMap[serviceId];
 
             var fg = Colors.White;
-            var bg = Colors.Black;
-            if (serviceId === currentServiceId)
-            {
-                fg = Colors.White;
-                bg = Colors.Red;
-            }
+            var bg = serviceId === currentServiceId ? Colors.Red
+                                                    : Colors.Black;
+
             blk = new FormattedBlock(cols, fg, bg);
             blk.write(channelName);
             blk.render();
@@ -689,8 +682,6 @@ var EpgDisplay = function (pdvr)
                 renderChannel(serviceId, null);
             }
         }
-
-        modReadline.clearScreenDown(process.stdout);
     }
 
     /* Renders the info display.
@@ -699,7 +690,6 @@ var EpgDisplay = function (pdvr)
     {
         var cols = process.stdout.columns;
 
-        modReadline.cursorTo(process.stdout, 0, 0);
         modReadline.clearScreenDown(process.stdout);
     
         // header
@@ -707,7 +697,7 @@ var EpgDisplay = function (pdvr)
         var part2 = "[R] Record";
         console.log(part1 + formatLine(" ", cols - (part1.length + part2.length)) + part2);
     
-        console.log(formatLine("_", process.stdout.columns));
+        console.log(formatLine("_", cols));
         
         var currentServiceId = services()[m_currentSelectionIndex];
         var currentChannelName = m_channelsMap[currentServiceId];
@@ -723,8 +713,8 @@ var EpgDisplay = function (pdvr)
             {
                 info += " (" + m_currentEvent.short.text + ")";
             }
-            console.log(info.substr(0, process.stdout.columns));
-            console.log(formatLine("_", process.stdout.columns));
+            console.log(info.substr(0, cols));
+            console.log(formatLine("_", cols));
             console.log("");
             console.log(m_currentEvent.extended.text);
         }
@@ -732,7 +722,7 @@ var EpgDisplay = function (pdvr)
         {
             console.log(currentChannelName);
             console.log("-- no information available --");
-            console.log(formatLine("_", process.stdout.columns));
+            console.log(formatLine("_", cols));
         }
     }
 
@@ -749,6 +739,22 @@ var EpgDisplay = function (pdvr)
     this.displayMode = function ()
     {
         return m_displayMode;
+    };
+
+    /* Zooms in.
+     */
+    this.zoomIn = function ()
+    {
+        m_colsPerHour += 5;
+        update();
+    };
+    
+    /* Zooms out.
+    */
+   this.zoomOut = function ()
+   {
+        m_colsPerHour = Math.max(12, m_colsPerHour - 5);
+        update();
     };
 
     /* Skips to the previous channel.
@@ -932,11 +938,11 @@ rl.input.on("keypress", function (char, key)
         }
         else if (char === "+")
         {
-            //colsPerHour += 5;
+            epgDisplay.zoomIn();
         }
         else if (char === "-")
         {
-            //colsPerHour = Math.max(12, colsPerHour - 1);
+            epgDisplay.zoomOut();
         }
         else if (key.name === "i")
         {
@@ -975,13 +981,6 @@ rl.input.on("keypress", function (char, key)
             epgDisplay.recordShow();
         }
         else if (key.name === "escape" || key.name === "q")
-        {
-            epgDisplay.setDisplayMode("epg");
-        }
-    }
-    else if (epgDisplay.displayMode() === "search")
-    {
-        if (key.name === "escape")
         {
             epgDisplay.setDisplayMode("epg");
         }
