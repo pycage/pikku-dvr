@@ -52,6 +52,96 @@ function Service(config)
         epg = JSON.parse(data);
         return epg;
     }
+
+    /* Loads the currently scheduled recordings.
+     */
+    function loadRecordings()
+    {
+        function getServiceId(channel)
+        {
+            for (var serviceId in channelsMap)
+            {
+                if (channelsMap[serviceId] === channel)
+                {
+                    return serviceId;
+                }
+            }
+            return "0";
+        }
+
+        var channelsMap = loadChannels();
+        var recordings = [];
+        var recs = modChildProcess.execSync(m_pdvr + " get-recordings");
+        recs.toString("utf-8").split("\n").forEach(function (line)
+        {
+            var parts = line.split("|");
+            if (parts.length >= 4)
+            {
+                recordings.push({
+                    start: Number.parseInt(parts[0]),
+                    duration: Number.parseInt(parts[1]),
+                    serviceId: getServiceId(parts[2]),
+                    name: parts[3]
+                });
+            }
+        });
+        return recordings;
+    }
+
+    /* Schedules the recording of the given event.
+     */
+    function record(serviceId, start, duration, name, callback)
+    {
+        function quote(s)
+        {
+            return "'" +
+                   s.replace(/'/g, "\\'")
+                    .replace(/!/g, "\\!") +
+                   "'";
+        }
+
+        var date = new Date(start * 1000);
+        var time = date.getFullYear() + "/" +
+                   (date.getMonth() + 1) + "/" +
+                   date.getDate() + " " +
+                   date.getHours() + ":" + date.getMinutes();
+
+        try
+        {
+            var channelsMap = loadChannels();
+            modChildProcess.execSync(m_pdvr + " record '" +
+                                     time + "' " + duration + " " +
+                                     quote(channelsMap[serviceId]) + " " +
+                                     quote(name));
+            callback(null);
+        }
+        catch (err)
+        {
+            console.error(err.status + " " + err.stdout);
+            callback(err);
+        }
+    }
+
+    /* Cancel the recording at the given time.
+     */
+    function cancel(serviceId, at, callback)
+    {
+        var toCancel = loadRecordings().filter(function (rec)
+        {
+            return rec.serviceId === serviceId &&
+                   at >= rec.start && at < rec.start + rec.duration;
+        })
+        .map(function (rec)
+        {
+            return rec.start;
+        });
+
+        toCancel.forEach(function (t)
+        {
+            modChildProcess.execSync(m_pdvr + " cancel " + t);
+        });
+        callback(null);
+    }
     
     this.handleRequest = function (request, response, userContext, shares, callback)
     {
@@ -113,6 +203,58 @@ function Service(config)
                 var event = m_epg.services[serviceId] ? (m_epg.services[serviceId][eventId] || { })
                                              : { };
                 send(response, JSON.stringify(event), callback);
+            }
+            else if (uri === "/recordings")
+            {
+                var recordings = { recordings: loadRecordings() };
+                send(response, JSON.stringify(recordings), callback);
+            }
+        }
+        else if (request.method === "POST")
+        {
+            if (uri === "/record")
+            {
+                var json = "";
+                request.on("data", function (chunk) { json += chunk; });
+                request.on("end", function ()
+                {
+                    var data = JSON.parse(json);
+                    record(data.serviceId, data.start, data.duration, data.name, function (err)
+                    {
+                        if (err)
+                        {
+                            response.writeHeadLogged(500, "Internal Server Error");
+                        }
+                        else
+                        {
+                            response.writeHeadLogged(201, "Created");
+                        }
+                        response.end();
+                        callback();
+                    })
+                });
+            }
+            else if (uri === "/cancel")
+            {
+                json = "";
+                request.on("data", function (chunk) { json += chunk; });
+                request.on("end", function ()
+                {
+                    data = JSON.parse(json);
+                    cancel(data.serviceId, data.at, function (err)
+                    {
+                        if (err)
+                        {
+                            response.writeHeadLogged(500, "Internal Server Error");
+                        }
+                        else
+                        {
+                            response.writeHeadLogged(204, "Canceled");
+                        }
+                        response.end();
+                        callback();
+                    });
+                });
             }
         }
     };
