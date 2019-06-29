@@ -2,8 +2,8 @@
 
 (function ()
 {
-    var m_channels = null;
-    var m_services = [];
+    var m_channels = sh.binding(null);
+    var m_services = sh.binding([]);
     var m_recordings = sh.binding([]);
     var m_scrollPosition = sh.binding(0);
 
@@ -27,7 +27,8 @@
             end: { set: setEnd, get: end, enumerable: true },
             recordings: { set: setRecordings, get: recordings, enumerable: true },
             scale: { set: setScale, get: scale, enumerable: true },
-            onMoved: { set: setOnMoved, get: onMoved, enumerable: true }
+            onMoved: { set: setOnMoved, get: onMoved, enumerable: true },
+            onClicked: { set: setOnClicked, get: onClicked, enumerable: true }
         });
 
         var m_begin = 0;
@@ -35,6 +36,8 @@
         var m_recordings = [];
         var m_scale = 1;
         var m_onMoved = null;
+        var m_onClicked = null;
+
         var m_isDragging = false;
 
         var m_item = $(
@@ -71,13 +74,13 @@
         {
             m_isDragging = true;
             this.position = m_item.scrollLeft();
-            this.offset = event.offsetX - m_item.scrollLeft();
+            this.offset = event.offsetX;
         });
         m_item.on("mousemove", function (event)
         {
             if (m_isDragging)
             {
-                var pos = event.offsetX - m_item.scrollLeft();
+                var pos = event.offsetX;
                 var diff = this.offset - pos;
                 m_item.scrollLeft(this.position + diff);
             }
@@ -151,6 +154,16 @@
             return m_onMoved;
         }
 
+        function setOnClicked(cb)
+        {
+            m_onClicked = cb;
+        }
+
+        function onClicked()
+        {
+            return m_onClicked;
+        }
+
         function update()
         {
             m_item.find("> div:nth-child(1)").html("");
@@ -163,11 +176,25 @@
                     sh.tag("div")
                     .style("position", "absolute")
                     .style("background-color", "var(--color-highlight-background)")
+                    .style("top", "1rem")
                     .style("left", pos + "px")
+                    .style("bottom", "0")
                     .style("width", width + "px")
-                    .style("height", "3rem")
+                    .style("overflow", "hidden")
+                    .content(
+                        sh.tag("h2").content(rec.name)
+                    )
                     .html()
                 );
+
+                marker.on("click", function ()
+                {
+                    if (m_onClicked)
+                    {
+                        m_onClicked(rec.serviceId, rec.start);
+                    }
+                });
+
                 m_item.find("> div:nth-child(1)").append(marker);
             });
 
@@ -183,12 +210,13 @@
                     .style("position", "absolute")
                     .style("left", pos + "px")
                     .style("width", 200 + "px")
-                    .style("height", "3rem")
+                    .style("height", "1rem")
                     .style("font-size", "80%")
                     .style("border-left", "solid 2px var(--color-primary)")
                     .style("padding-left", "0.25em")
-                    .style("line-height", "3rem")
+                    .style("line-height", "1rem")
                     .style("overflow", "hidden")
+                    .style("pointer-events", "none")
                     .content(
                         label
                     )
@@ -212,15 +240,137 @@
                 m_onMoved(begin, end);
             }
         };
+
+        this.scrollTo = function (time)
+        {
+            var pos = (time - m_begin) * 200 / 1800;
+            m_item.scrollLeft(pos);
+        };
     }
 
+    /* Element representing the list of channels.
+     */
     function ChannelsListView()
     {
+        Object.defineProperties(this, {
+            channels: { set: setChannels, get: channels, enumerable: true },
+            services: { set: setServices, get: services, enumerable: true },
+            begin: { set: setBegin, get: begin, enumerable: true },
+            end: { set: setEnd, get: end, enumerable: true }
+        });
+
         var base = new sh.ListView();
         sh.extend(this, base);
-        base.get().css("margin-top", "6rem");
+        base.get().css("margin-top", "3rem");
+
+        var m_channels = { };
+        var m_services = [];
+        var m_begin = 0;
+        var m_end = 0;
+
+        var m_items = [];
+
+        function setChannels(c)
+        {
+            m_channels = c;
+            update();
+        }
+
+        function channels()
+        {
+            return m_channels;
+        }
+
+        function setServices(s)
+        {
+            m_services = s;
+            update();
+        }
+
+        function services()
+        {
+            return m_services;
+        }
+
+        function setBegin(begin)
+        {
+            m_begin = begin;
+            m_items.forEach(function (item)
+            {
+                item.begin(begin);
+            });
+        }
+
+        function begin()
+        {
+            return m_begin;
+        }
+
+        function setEnd(end)
+        {
+            m_end = end;
+            m_items.forEach(function (item)
+            {
+                item.end(end);
+            });
+        }
+
+        function end()
+        {
+            return m_end;
+        }
+
+        function update()
+        {
+            m_items.forEach(function (item)
+            {
+                item.get().get().remove();
+                item.dispose();
+            });
+            m_items = [];
+
+            m_services.forEach(function (serviceId)
+            {
+                var item = sh.element(ChannelItem).title(m_channels[serviceId])
+                .serviceId(serviceId)
+                .begin(m_begin)
+                .end(m_end)
+                .recordings(m_recordings)
+                .onClicked(function (eventId, name, short, scheduled)
+                {
+                    openEventPage(serviceId, eventId, name, short, scheduled);
+                });
+                
+                item.active(sh.predicate([m_scrollPosition], function ()
+                {
+                    var topPos = $(document).scrollTop();
+                    var bottomPos = topPos + $(window).height();
+                    var pos = item.get().get().offset().top;
+                    var height = item.get().get().height();
+                    //console.log("pos " + pos + " height " + height);
+                    return pos !== 0 && pos < bottomPos && pos + height > topPos;
+                }));
+                
+                m_items.push(item);
+                base.add(item.get());
+            });
+        }
+
+        this.scrollTo = function (serviceId)
+        {
+            for (var i = 0; i < base.size(); ++i)
+            {
+                var item = base.item(i);
+                if (item.serviceId === serviceId)
+                {
+                    $(document).scrollTop(item.get().offset().top - $(window).height() / 2);
+                }
+            }
+        };
     }
 
+    /* Element representing a channel.
+     */
     function ChannelItem()
     {    
         Object.defineProperties(this, {
@@ -249,7 +399,7 @@
         var m_item = $(
             sh.tag("li")
             .style("background-color", "var(--color-content-background)")
-            .style("height", "80px")
+            .style("height", "5rem")
             .style("overflow", "hidden")
             .content(
                 sh.tag("h1")
@@ -491,59 +641,25 @@
                 var width = event.duration * (200 / 1800) - 4;
 
                 var eventScheduled = scheduled(event.start, event.start + event.duration);
-                var ledColor;
-                switch (eventScheduled)
-                {
-                case "full":
-                    ledColor = "red";
-                    break;
-                case "partial":
-                    ledColor = "darkred";
-                    break;
-                case "no":
-                    ledColor = "grey";
-                    break;
-                }
 
-                var eventBox = $(
-                    sh.tag("div")
-                    .style("position", "absolute")
-                    .style("overflow", "hidden")
-                    .style("top", "2px")
-                    .style("left", pos + "px")
-                    .style("width", width + "px")
-                    .style("bottom", "2px")
-                    .style("background-color", "var(--color-primary-background)")
-                    .style("border", "solid 2px var(--color-border)")
-                    .style("border-radius", "0.25rem")
-                    .on("click", "")
-                    .content(
-                        sh.tag("h1").content(event.name)
-                    )
-                    .content(
-                        sh.tag("h2").content(event.short)
-                    )
-                    .content(
-                        sh.tag("div")
-                        .style("position", "absolute")
-                        .style("right", "0.5rem")
-                        .style("bottom", "0.5rem")
-                        .style("border-radius", "0.5rem")
-                        .style("width", "0.5rem")
-                        .style("height", "0.5rem")
-                        .style("background-color", ledColor)
-                    )
-                    .html()
-                );
-
-                eventBox.on("click", function ()
+                var eventItem = new EventItem();
+                eventItem.scheduled = scheduled;
+                eventItem.title = event.name;
+                eventItem.subtitle = event.short;
+                eventItem.onClicked = function ()
                 {
                     if (m_onClicked)
                     {
                         m_onClicked(event.eventId, event.name, event.short, eventScheduled);
                     }
-                });
-                m_item.find("> div").append(eventBox);
+                };
+
+                var eventBox = new EventBox();
+                eventBox.position = pos;
+                eventBox.size = width;
+                eventBox.add(eventItem);
+
+                m_item.find("> div").append(eventBox.get());
             });
         }
 
@@ -553,11 +669,253 @@
         };
     }
 
+    /* Element for holding an event item.
+     */
+    function EventBox()
+    {
+        Object.defineProperties(this, {
+            position: { set: setPosition, get: position, enumerable: true },
+            size: { set: setSize, get: size, enumerable: true }
+        });
+
+        var m_position = 0;
+        var m_size = 10;
+
+        var m_item = $(
+            sh.tag("div")
+            .style("position", "absolute")
+            .style("top", "2px")
+            .style("left", 0 + "px")
+            .style("width", 10 + "px")
+            .style("bottom", "2px")
+            .html()
+        );
+
+        function setPosition(pos)
+        {
+            m_position = pos;
+            m_item.css("left", pos + "px");
+        }
+
+        function position()
+        {
+            return m_position;
+        }
+
+        function setSize(size)
+        {
+            m_size = size;
+            m_item.css("width", size + "px");
+        }
+
+        function size()
+        {
+            return m_size;
+        }
+
+        this.get = function ()
+        {
+            return m_item;
+        };
+
+        this.add = function (child)
+        {
+            m_item.append(child.get());
+        };
+    }
+
+    /* Element representing an event.
+     */
+    function EventItem()
+    {
+        Object.defineProperties(this, {
+            scheduled: { set: setScheduled, get: scheduled, enumerable: true },
+            title: { set: setTitle, get: title, enumerable: true },
+            subtitle: { set: setSubtitle, get: subtitle, enumerable: true },
+            onClicked: { set: setOnClicked, get: onClicked, enumerable: true }
+        });
+
+        var m_scheduled = "no";
+        var m_title = "";
+        var m_subtitle = "";
+        var m_onClicked = null;
+
+        var m_item = $(
+            sh.tag("div")
+            .style("position", "relative")
+            .style("overflow", "hidden")
+            .style("height", "3rem")
+            .style("padding-top", "0.25rem")
+            .style("padding-bottom", "0.25rem")
+            .style("background-color", "var(--color-primary-background)")
+            .style("border", "solid 2px var(--color-border)")
+            .style("border-radius", "0.25rem")
+            .on("click", "")
+            .content(
+                sh.tag("h1")
+            )
+            .content(
+                sh.tag("h2")
+            )
+            .content(
+                sh.tag("div")
+                .style("position", "absolute")
+                .style("right", "0.5rem")
+                .style("bottom", "0.5rem")
+                .style("border-radius", "0.5rem")
+                .style("width", "0.5rem")
+                .style("height", "0.5rem")
+                .style("background-color", "white")
+            )
+            .html()
+        );
+
+        m_item.on("click", function ()
+        {
+            if (m_onClicked)
+            {
+                m_onClicked();
+            }
+        });
+
+
+        function setScheduled(scheduled)
+        {
+            m_scheduled = scheduled;
+            var ledColor = scheduled === "full" ? "red"
+                                                : scheduled === "partial" ? "darkred"
+                                                                          : "grey";
+
+            m_item.find("> div").css("background-color", ledColor);
+        }
+
+        function scheduled()
+        {
+            return m_scheduled;
+        }
+
+        function setTitle(title)
+        {
+            m_title = title;
+            m_item.find("h1").html(sh.escapeHtml(title));
+        }
+
+        function title()
+        {
+            return m_title;
+        }
+
+        function setSubtitle(subtitle)
+        {
+            m_subtitle = subtitle;
+            m_item.find("h2").html(sh.escapeHtml(subtitle));
+        }
+
+        function subtitle()
+        {
+            return m_subtitle;
+        }
+
+        function setOnClicked(cb)
+        {
+            m_onClicked = cb;
+        }
+
+        function onClicked()
+        {
+            return m_onClicked;
+        }
+
+        this.get = function ()
+        {
+            return m_item;
+        };
+    }
+
+    /* Element representing a search item.
+     */
+    function SearchItem()
+    {
+        Object.defineProperties(this, {
+            channel: { set: setChannel, get: channel, enumerable: true },
+            start: { set: setStart, get: start, enumerable: true },
+            duration: { set: setDuration, get: duration, enumerable: true }
+        });
+
+        var m_channel = "";
+        var m_start = 0;
+        var m_duration = 0;
+
+        var m_item = $(
+            sh.tag("li")
+            .style("background-color", "var(--color-content-background)")
+            .content(
+                sh.tag("h1")
+            )
+            .content(
+                sh.tag("div")
+                .style("position", "relative")
+                .style("padding", "0.5rem")
+            )
+            .html()
+        );
+
+        function setChannel(channel)
+        {
+            m_channel = channel;
+            update();
+        }
+
+        function channel()
+        {
+            return m_channel;
+        }
+
+        function setStart(start)
+        {
+            m_start = start;
+            update();
+        }
+
+        function start()
+        {
+            return m_start;
+        }
+
+        function setDuration(duration)
+        {
+            m_duration = duration;
+            update();
+        }
+
+        function duration()
+        {
+            return m_duration;
+        }
+
+        function update()
+        {
+            var title = m_channel + " " + formatTime(new Date(m_start * 1000));
+            m_item.find("h1").html(sh.escapeHtml(title));
+        }
+
+        this.get = function ()
+        {
+            return m_item;
+        };
+
+        this.add = function (child)
+        {
+            m_item.find("> div").append(child.get());
+        };
+    }
+
+
     /* Loads the list of channels.
      */
     function loadChannels(callback)
     {
-        if (m_channels)
+        if (m_channels.value())
         {
             // already loaded
             callback();
@@ -574,11 +932,11 @@
         })
         .done(function (data, status, xhr)
         {
-            m_channels = data;
-            m_services = Object.keys(data).sort(function (a, b)
+            m_channels.assign(data);
+            m_services.assign(Object.keys(data).sort(function (a, b)
             {
-                return m_channels[a].toLowerCase() < m_channels[b].toLowerCase() ? -1 : 1;
-            });
+                return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
+            }));
             callback();
         })
         .fail(function (xhr, status, err)
@@ -696,14 +1054,42 @@
             sh.element(sh.Separator)
         );
 
-        m_services.forEach(function (serviceId)
+        m_services.value().forEach(function (serviceId)
         {
             menu.add(
-                sh.element(sh.MenuItem).text(m_channels[serviceId])
+                sh.element(sh.MenuItem).text(m_channels.value()[serviceId])
             );
         });
 
         menu.popup_(page.header.get());
+    }
+
+    function showSearchDialog()
+    {
+        var dlg = sh.element(sh.Dialog).title("Search")
+        .button(
+            sh.element(sh.Button).text("Search")
+            .onClicked(function ()
+            {
+                var searchTerm = dlg.find("input").get().text;
+                openSearchPage(searchTerm);
+                dlg.close_();
+            })
+        )
+        .button(
+            sh.element(sh.Button).text("Cancel")
+            .onClicked(function ()
+            {
+                dlg.close_();
+            })
+        )
+        .add(
+            sh.element(sh.Labeled).text("Search for:")
+            .add(
+                sh.element(sh.TextInput).id("input")
+            )
+        );
+        dlg.show_();
     }
 
     /* Opens the main page.
@@ -716,7 +1102,6 @@
         var now = new Date().getTime() / 1000;
 
         var page = sh.element(sh.NSPage)
-        .onSwipeBack(function () { page.dispose(); page.pop_(); })
         .header(
             sh.element(sh.PageHeader).title("DVR")
             .subtitle(sh.predicate([beginTime], function ()
@@ -730,11 +1115,16 @@
                 .onClicked(function () { page.dispose(); page.pop_(); })
             )
             .right(
-                sh.element(sh.IconButton).icon("sh-icon-bug")
+                sh.element(sh.IconButton).icon("sh-icon-search")
+                .onClicked(showSearchDialog)
             )
         )
         .add(
             sh.element(ChannelsListView).id("channelsList")
+            .channels(m_channels)
+            .services(m_services)
+            .begin(beginTime)
+            .end(endTime)
         )
         .add(
             sh.element(Timeline).id("timeline")
@@ -747,33 +1137,13 @@
                 endTime.assign(end);
                 beginTime.assign(begin);
             })
+            .onClicked(function (serviceId, start)
+            {
+                page.find("channelsList").scrollTo_(serviceId);
+                page.find("timeline").scrollTo_(start);
+            })
         );
         page.push_();
-
-        m_services.forEach(function (serviceId)
-        {
-            var item = sh.element(ChannelItem).title(m_channels[serviceId])
-            .serviceId(serviceId)
-            .begin(beginTime)
-            .end(endTime)
-            .recordings(m_recordings)
-            .onClicked(function (eventId, name, short, scheduled)
-            {
-                openEventPage(serviceId, eventId, name, short, scheduled);
-            });
-            
-            item.active(sh.predicate([m_scrollPosition], function ()
-            {
-                var topPos = $(document).scrollTop();
-                var bottomPos = topPos + $(window).height();
-                var pos = item.get().get().offset().top;
-                var height = item.get().get().height();
-                //console.log("pos " + pos + " height " + height);
-                return pos !== 0 && pos < bottomPos && pos + height > topPos;
-            }));
-            
-            page.find("channelsList").add(item);
-        });
 
         m_scrollPosition.update();
         page.find("timeline").update_();
@@ -786,7 +1156,7 @@
      */
     function openChannelsPage()
     {
-        var services = m_services.slice();
+        var services = m_services.value().slice();
 
         var page = sh.element(sh.NSPage)
         .onSwipeBack(function () { page.pop_(); })
@@ -796,7 +1166,7 @@
                 sh.element(sh.IconButton).icon("sh-icon-back")
                 .onClicked(function ()
                 {
-                    m_services = services;
+                    m_services.assign(services);
                     page.pop_();
                 })
             )
@@ -808,9 +1178,9 @@
             sh.element(sh.ListView).id("listview")
         );
 
-        for (var serviceId in m_channels)
+        for (var serviceId in m_channels.value())
         {
-            var item = sh.element(sh.ListItem).title(m_channels[serviceId])
+            var item = sh.element(sh.ListItem).title(m_channels.value()[serviceId])
             .selected(services.indexOf(serviceId) !== -1);
             item.action(["sh-icon-checked-circle", function (svcId, item)
             {
@@ -840,6 +1210,68 @@
         page.push_();
     }
 
+    /* Opens the search page.
+     */
+    function openSearchPage(searchTerm)
+    {
+        var page = sh.element(sh.NSPage)
+        .onSwipeBack(function () { page.pop_(); })
+        .header(
+            sh.element(sh.PageHeader).title("Search").subtitle(searchTerm)
+            .left(
+                sh.element(sh.IconButton).icon("sh-icon-back")
+                .onClicked(function () { page.pop_(); })
+            )
+        )
+        .add(
+            sh.element(sh.ListView).id("list")
+        );
+        page.push_();
+
+        var data = {
+            searchTerm: searchTerm
+        };
+
+        var busyIndicator = sh.element(sh.BusyPopup).text("Searching");
+        busyIndicator.show_();
+
+        $.ajax({
+            type: "POST",
+            url: "/::pikku-dvr/search",
+            data: JSON.stringify(data),
+            dataType: "json"
+        })
+        .done(function (data, status, xhr)
+        {
+            data.result.forEach(function (event)
+            {
+                var item = sh.element(SearchItem)
+                .channel(m_channels.value()[event.serviceId])
+                .start(event.start)
+                .duration(event.duration)
+                .add(
+                    sh.element(EventItem)
+                    .title(event.name)
+                    .subtitle(event.short)
+                    .onClicked(function ()
+                    {
+                        openEventPage(event.serviceId, event.eventId, event.name, event.short, "no");
+                    })
+                );
+
+                page.find("list").add(item);
+            });
+        })
+        .fail(function (xhr, status, err)
+        {
+            ui.showError("Could not load results: " + err);
+        })
+        .always(function ()
+        {
+            busyIndicator.hide_();
+        });
+    }
+
     /* Opens the event information page.
      */
     function openEventPage(serviceId, eventId, name, short, scheduled)
@@ -856,7 +1288,7 @@
             )
         )
         .add(
-            sh.element(sh.Label).text(m_channels[serviceId])
+            sh.element(sh.Label).text(m_channels.value()[serviceId])
         )
         .add(
             sh.element(sh.Labeled).text("Start")
@@ -894,6 +1326,9 @@
 
         page.push_();
 
+        var busyIndicator = sh.element(sh.BusyPopup).text("Loading");
+        busyIndicator.show_();
+
         $.ajax({
             type: "GET",
             url: "/::pikku-dvr/event",
@@ -914,11 +1349,11 @@
         })
         .fail(function (xhr, status, err)
         {
-            //ui.showError("Could not load channels: " + err);
+            ui.showError("Could not load information: " + err);
         })
         .always(function ()
         {
-            //busyIndicator.hide_();
+            busyIndicator.hide_();
         });
     }
 

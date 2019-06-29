@@ -142,6 +142,49 @@ function Service(config)
         });
         callback(null);
     }
+
+    /* Searches for the given search term and returns a list of 
+     * matching events.
+     */
+    function search(searchTerm, callback)
+    {
+        if (! m_epg)
+        {
+            m_epg = loadEpg();
+        }
+
+        var now = new Date().getTime() / 1000;
+        var re = new RegExp(searchTerm, "i");
+        var result = [];
+        for (var serviceId in m_epg.services)
+        {
+            for (var eventId in m_epg.services[serviceId])
+            {
+                var event = m_epg.services[serviceId][eventId];
+                var name = (event.short || { }).name || "";
+                var text = (event.short || { }).text || "";
+                var info = (event.extended || { }).text || "";
+
+                if (event.start + event.duration < now)
+                {
+                    continue;
+                }
+
+                if (name.match(re) || text.match(re) || info.match(re))
+                {
+                    result.push({
+                        serviceId: serviceId,
+                        eventId: eventId,
+                        start: event.start,
+                        duration: event.duration,
+                        name: event.short.name,
+                        short: event.short.text
+                    });
+                }
+            }
+        }
+        callback(result);
+    }
     
     this.handleRequest = function (request, response, userContext, shares, callback)
     {
@@ -253,6 +296,19 @@ function Service(config)
                         }
                         response.end();
                         callback();
+                    });
+                });
+            }
+            else if (uri === "/search")
+            {
+                json = "";
+                request.on("data", function (chunk) { json += chunk; });
+                request.on("end", function ()
+                {
+                    data = JSON.parse(json);
+                    search(data.searchTerm, function (result)
+                    {
+                        send(response, JSON.stringify({ result: result }), callback);
                     });
                 });
             }
