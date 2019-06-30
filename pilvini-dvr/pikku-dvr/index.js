@@ -255,6 +255,7 @@
         Object.defineProperties(this, {
             channels: { set: setChannels, get: channels, enumerable: true },
             services: { set: setServices, get: services, enumerable: true },
+            recordings: { set: setRecordings, get: recordings, enumerable: true },
             begin: { set: setBegin, get: begin, enumerable: true },
             end: { set: setEnd, get: end, enumerable: true }
         });
@@ -265,6 +266,7 @@
 
         var m_channels = { };
         var m_services = [];
+        var m_recordings = sh.binding([]);
         var m_begin = 0;
         var m_end = 0;
 
@@ -290,6 +292,16 @@
         function services()
         {
             return m_services;
+        }
+
+        function setRecordings(recs)
+        {
+            m_recordings.assign(recs);
+        }
+
+        function recordings()
+        {
+            return m_recordings.value();
         }
 
         function setBegin(begin)
@@ -645,7 +657,7 @@
                 var eventScheduled = scheduled(event.start, event.start + event.duration);
 
                 var eventItem = new EventItem();
-                eventItem.scheduled = scheduled;
+                eventItem.scheduled = eventScheduled;
                 eventItem.title = event.name;
                 eventItem.subtitle = event.short;
                 eventItem.onClicked = function ()
@@ -671,7 +683,7 @@
         };
     }
 
-    /* Element for holding an event item.
+    /* Element for positioning an event item.
      */
     function EventBox()
     {
@@ -1125,6 +1137,7 @@
             sh.element(ChannelsListView).id("channelsList")
             .channels(m_channels)
             .services(m_services)
+            .recordings(m_recordings)
             .begin(beginTime)
             .end(endTime)
         )
