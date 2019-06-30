@@ -500,6 +500,8 @@
             else if (! v && wasActive)
             {
                 m_item.find("> div").html("");
+                m_cachedEvents = [];
+                m_cachedRanges = [];
             }
         }
 
