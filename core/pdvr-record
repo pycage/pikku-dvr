@@ -12,7 +12,8 @@ mkdir -p ${PIDS}
 
 FULLNAME="${NAME} - `date +'%Y-%m-%d'`"
 REC_FILE="${EXPORTS}/stream.rec"
-TS_FILE="${EXPORTS}/${FULLNAME}.ts"
+SAFENAME=`echo "${FULLNAME}" | tr "/:" "-" | tr "<>*" "_" | tr "\"" "'"`
+TS_FILE="${EXPORTS}/${SAFENAME}.ts"
 
 log "Recording '${FULLNAME}', duration ${DURATION} seconds."
 if [ ! -e /dev/dvb/adapter0/dvr0 ]; then

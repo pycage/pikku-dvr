@@ -94,10 +94,9 @@ function Service(config)
     {
         function quote(s)
         {
-            return "'" +
-                   s.replace(/'/g, "\\'")
-                    .replace(/!/g, "\\!") +
-                   "'";
+            return "\"" +
+                   s.replace(/\"/g, "\\\"") +
+                   "\"";
         }
 
         var date = new Date(start * 1000);
@@ -109,8 +108,8 @@ function Service(config)
         try
         {
             var channelsMap = loadChannels();
-            modChildProcess.execSync(m_pdvr + " record '" +
-                                     time + "' " + duration + " " +
+            modChildProcess.execSync(m_pdvr + " record \"" +
+                                     time + "\" " + duration + " " +
                                      quote(channelsMap[serviceId]) + " " +
                                      quote(name));
             callback(null);

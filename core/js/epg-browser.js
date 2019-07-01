@@ -451,17 +451,16 @@ var EpgDisplay = function (pdvr)
     {
         function quote(s)
         {
-            return "'" +
-                s.replace(/'/g, "\\'")
-                    .replace(/!/g, "\\!") +
-                "'";
+            return "\"" +
+                   s.replace(/\"/g, "\\\"") +
+                   "\"";
         }
 
         var date = new Date(ev.start * 1000);
         var time = date.getFullYear() + "/" +
-                (date.getMonth() + 1) + "/" +
-                date.getDate() + " " +
-                date.getHours() + ":" + date.getMinutes();
+                   (date.getMonth() + 1) + "/" +
+                   date.getDate() + " " +
+                   date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds();
 
         try
         {
@@ -470,8 +469,8 @@ var EpgDisplay = function (pdvr)
             {
                 name += " (" + ev.short.text + ")";
             }
-            modChildProcess.execSync(m_pdvr + " record '" +
-                                    time + "' " + ev.duration + " " +
+            modChildProcess.execSync(m_pdvr + " record \"" +
+                                    time + "\" " + ev.duration + " " +
                                     quote(m_channelsMap[serviceId]) + " " +
                                     quote(name));
         }

@@ -18,6 +18,34 @@
         return h + ":" + m;
     }
 
+    /* Returns if the given event is scheduled.
+     */
+    function scheduled(serviceId, begin, end)
+    {
+        var recs = m_recordings.value();
+        var covered = false;
+        var full = false;
+        for (var i = 0; i < recs.length; ++i)
+        {
+            var rec = recs[i];
+            var recStart = Number.parseInt(rec.start);
+            var recDuration = Number.parseInt(rec.duration);
+
+            if (rec.serviceId === serviceId && begin >= recStart && end <= (recStart + recDuration))
+            {
+                covered = true;
+                full = true;
+            }
+            else if (rec.serviceId === serviceId && begin < (recStart + recDuration) && end > recStart)
+            {
+                covered = true;
+            }
+        }
+        return full ? "full" 
+                    : covered ? "partial"
+                              : "no";
+    }
+
     /* Element representing a timeline.
      */
     function Timeline()
@@ -255,7 +283,6 @@
         Object.defineProperties(this, {
             channels: { set: setChannels, get: channels, enumerable: true },
             services: { set: setServices, get: services, enumerable: true },
-            recordings: { set: setRecordings, get: recordings, enumerable: true },
             begin: { set: setBegin, get: begin, enumerable: true },
             end: { set: setEnd, get: end, enumerable: true }
         });
@@ -266,7 +293,6 @@
 
         var m_channels = { };
         var m_services = [];
-        var m_recordings = sh.binding([]);
         var m_begin = 0;
         var m_end = 0;
 
@@ -292,16 +318,6 @@
         function services()
         {
             return m_services;
-        }
-
-        function setRecordings(recs)
-        {
-            m_recordings.assign(recs);
-        }
-
-        function recordings()
-        {
-            return m_recordings.value();
         }
 
         function setBegin(begin)
@@ -347,7 +363,6 @@
                 .serviceId(serviceId)
                 .begin(m_begin)
                 .end(m_end)
-                .recordings(m_recordings)
                 .onClicked(function (eventId, name, short, scheduled)
                 {
                     openEventPage(serviceId, eventId, name, short, scheduled);
@@ -366,6 +381,7 @@
                 m_items.push(item);
                 base.add(item.get());
             });
+            m_scrollPosition.update();
         }
 
         this.scrollTo = function (serviceId)
@@ -390,7 +406,6 @@
             serviceId: { set: setServiceId, get: serviceId, enumerable: true },
             begin: { set: setBegin, get: begin, enumerable: true },
             end: { set: setEnd, get: end, enumerable: true },
-            recordings: { set: setRecordings, get: recordings, enumerable: true },
             scale: { set: setScale, get: scale, enumerable: true },
             active: { set: setActive, get: active, enumerable: true },
             onClicked: { set: setOnClicked, get: onClicked, enumerable: true }
@@ -400,7 +415,6 @@
         var m_serviceId = 0;
         var m_begin = 0;
         var m_end = 0;
-        var m_recordings = [];
         var m_scale = 1;
         var m_isActive = false;
         var m_onClicked = null;
@@ -431,7 +445,7 @@
         function setTitle(title)
         {
             m_title = title;
-            m_item.find("> h1").html(sh.escapeHtml(title));
+            m_item.find("> h1").html(sh.escapeHtml(title) + " ");
         }
 
         function title()
@@ -471,20 +485,6 @@
         function end()
         {
             return m_end;
-        }
-
-        function setRecordings(recs)
-        {
-            m_recordings = recs;
-            if (m_isActive)
-            {
-                update();
-            }
-        }
-
-        function recordings()
-        {
-            return m_recordings;
         }
 
         function setScale(scale)
@@ -577,31 +577,6 @@
             m_cachedRanges = ranges;
         }
 
-        function scheduled(begin, end)
-        {
-            var covered = false;
-            var full = false;
-            for (var i = 0; i < m_recordings.length; ++i)
-            {
-                var rec = m_recordings[i];
-                var recStart = Number.parseInt(rec.start);
-                var recDuration = Number.parseInt(rec.duration);
-
-                if (rec.serviceId === m_serviceId && begin >= recStart && end <= (recStart + recDuration))
-                {
-                    covered = true;
-                    full = true;
-                }
-                else if (rec.serviceId === m_serviceId && begin < (recStart + recDuration) && end > recStart)
-                {
-                    covered = true;
-                }
-            }
-            return full ? "full" 
-                        : covered ? "partial"
-                                  : "no";
-        }
-
         function update()
         {
             var range = m_cachedRanges.find(function (r)
@@ -619,31 +594,51 @@
                 return;
             }
 
-            console.log("fetch from server: " + m_begin + " - " + m_end);
-            $.ajax({
-                type: "GET",
-                url: "/::pikku-dvr/epg",
-                dataType: "json",
-                beforeSend: function (xhr)
+            var begin = m_begin;
+            var end = m_end;
+            setTimeout(function ()
+            {
+                if (m_begin !== begin || m_end !== end)
                 {
-                    xhr.setRequestHeader("x-pilvini-service", m_serviceId);
-                    xhr.setRequestHeader("x-pilvini-begin", m_begin);
-                    xhr.setRequestHeader("x-pilvini-end", m_end);
+                    return;
                 }
-            })
-            .done(function (data, status, xhr)
-            {
-                cacheEvents(m_begin, m_end, data.events);
-                render(data.events);
-            })
-            .fail(function (xhr, status, err)
-            {
-                //ui.showError("Could not load channels: " + err);
-            })
-            .always(function ()
-            {
-                //busyIndicator.hide_();
-            });
+
+                var busyIndicator = $(
+                    sh.tag("span").class("sh-busy-indicator")
+                    .html()
+                );
+                m_item.find("> h1").append(busyIndicator);
+    
+                console.log("fetch from server: " + m_begin + " - " + m_end);
+                $.ajax({
+                    type: "GET",
+                    url: "/::pikku-dvr/epg",
+                    dataType: "json",
+                    beforeSend: function (xhr)
+                    {
+                        xhr.setRequestHeader("x-pilvini-service", m_serviceId);
+                        xhr.setRequestHeader("x-pilvini-begin", m_begin);
+                        xhr.setRequestHeader("x-pilvini-end", m_end);
+                    }
+                })
+                .done(function (data, status, xhr)
+                {
+                    if (begin === m_begin && end === m_end)
+                    {
+                        cacheEvents(m_begin, m_end, data.events);
+                        render(data.events);
+                    }
+                })
+                .fail(function (xhr, status, err)
+                {
+                    //ui.showError("Could not load channels: " + err);
+                })
+                .always(function ()
+                {
+                    busyIndicator.remove();
+                });
+    
+            }, 300);
         }
 
         function render(events)
@@ -654,7 +649,7 @@
                 var pos = (event.start - m_begin) * (200 / 1800) + 2;
                 var width = event.duration * (200 / 1800) - 4;
 
-                var eventScheduled = scheduled(event.start, event.start + event.duration);
+                var eventScheduled = scheduled(m_serviceId, event.start, event.start + event.duration);
 
                 var eventItem = new EventItem();
                 eventItem.scheduled = eventScheduled;
@@ -1135,9 +1130,6 @@
         )
         .add(
             sh.element(ChannelsListView).id("channelsList")
-            .channels(m_channels)
-            .services(m_services)
-            .recordings(m_recordings)
             .begin(beginTime)
             .end(endTime)
         )
@@ -1158,9 +1150,13 @@
                 page.find("timeline").scrollTo_(start);
             })
         );
-        page.push_();
+        page.push_(function ()
+        {
+            page.find("channelsList")
+            .channels(m_channels)
+            .services(m_services);
+        });
 
-        m_scrollPosition.update();
         page.find("timeline").update_();
 
         loadRecordings();
@@ -1260,17 +1256,26 @@
         {
             data.result.forEach(function (event)
             {
-                var item = sh.element(SearchItem)
-                .channel(m_channels.value()[event.serviceId])
+                var item = sh.element(SearchItem);
+                item
+                .channel(m_channels.value()[event.serviceId] || "?" + event.serviceId)
                 .start(event.start)
                 .duration(event.duration)
                 .add(
-                    sh.element(EventItem)
+                    sh.element(EventItem).id("eventItem")
                     .title(event.name)
                     .subtitle(event.short)
+                    .scheduled(sh.predicate([m_recordings], function ()
+                    {
+                        return scheduled(event.serviceId, event.start, event.start + event.duration);
+                    }))
                     .onClicked(function ()
                     {
-                        openEventPage(event.serviceId, event.eventId, event.name, event.short, "no");
+                        openEventPage(event.serviceId,
+                                      event.eventId,
+                                      event.name,
+                                      event.short,
+                                      item.find("eventItem").scheduled());
                     })
                 );
 
