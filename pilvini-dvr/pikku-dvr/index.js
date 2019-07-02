@@ -18,6 +18,26 @@
         return h + ":" + m;
     }
 
+    function formatDuration(s)
+    {
+        var t = s;
+        var secs = Math.floor(t) % 60;
+        t /= 60;
+        var minutes = Math.floor(t) % 60;
+        t /= 60;
+        var hours = Math.floor(t);
+
+        var h = hours.toFixed(0);
+        var m = minutes.toFixed(0);
+        var s = secs.toFixed(0);
+
+        if (h.length === 1) { h = "0" + h; }
+        if (m.length === 1) { m = "0" + m; }
+        if (s.length === 1) { s = "0" + s; }
+
+        return (hours > 0 ? h + ":" : "") + m + ":" + s;
+    }
+
     /* Returns if the given event is scheduled.
      */
     function scheduled(serviceId, begin, end)
@@ -25,12 +45,17 @@
         var recs = m_recordings.value();
         var covered = false;
         var full = false;
+        var conflict = false;
         for (var i = 0; i < recs.length; ++i)
         {
             var rec = recs[i];
             var recStart = Number.parseInt(rec.start);
             var recDuration = Number.parseInt(rec.duration);
 
+            if (rec.serviceId !== serviceId && begin < (recStart + recDuration) && end > recStart)
+            {
+                conflict = true;
+            }
             if (rec.serviceId === serviceId && begin >= recStart && end <= (recStart + recDuration))
             {
                 covered = true;
@@ -41,9 +66,10 @@
                 covered = true;
             }
         }
-        return full ? "full" 
-                    : covered ? "partial"
-                              : "no";
+        return conflict ? "conflict"
+                           : full ? "full" 
+                                  : covered ? "partial"
+                                            : "no";
     }
 
     /* Element representing a timeline.
@@ -365,7 +391,7 @@
                 .end(m_end)
                 .onClicked(function (eventId, name, short, scheduled)
                 {
-                    openEventPage(serviceId, eventId, name, short, scheduled);
+                    showEventDialog(serviceId, eventId, name, short, scheduled);
                 });
                 
                 item.active(sh.predicate([m_scrollPosition], function ()
@@ -649,26 +675,29 @@
                 var pos = (event.start - m_begin) * (200 / 1800) + 2;
                 var width = event.duration * (200 / 1800) - 4;
 
-                var eventScheduled = scheduled(m_serviceId, event.start, event.start + event.duration);
-
-                var eventItem = new EventItem();
-                eventItem.scheduled = eventScheduled;
-                eventItem.title = event.name;
-                eventItem.subtitle = event.short;
-                eventItem.onClicked = function ()
-                {
-                    if (m_onClicked)
+                var eventBox = sh.element(EventBox);
+                eventBox
+                .position(pos)
+                .size(width)
+                .add(
+                    sh.element(EventItem).id("item")
+                    .title(event.name)
+                    .subtitle(event.short)
+                    .scheduled(sh.predicate([m_recordings], function ()
                     {
-                        m_onClicked(event.eventId, event.name, event.short, eventScheduled);
-                    }
-                };
+                        return scheduled(m_serviceId, event.start, event.start + event.duration);
+                    }))
+                    .onClicked(function ()
+                    {
+                        if (m_onClicked)
+                        {
+                            var eventScheduled = eventBox.find("item").scheduled();
+                            m_onClicked(event.eventId, event.name, event.short, eventScheduled);
+                        }
+                    })
+                );
 
-                var eventBox = new EventBox();
-                eventBox.position = pos;
-                eventBox.size = width;
-                eventBox.add(eventItem);
-
-                m_item.find("> div").append(eventBox.get());
+                m_item.find("> div").append(eventBox.get().get());
             });
         }
 
@@ -793,7 +822,8 @@
             m_scheduled = scheduled;
             var ledColor = scheduled === "full" ? "red"
                                                 : scheduled === "partial" ? "darkred"
-                                                                          : "grey";
+                                                                          : scheduled === "conflict" ? "orange" 
+                                                                                                     : "grey";
 
             m_item.find("> div").css("background-color", ledColor);
         }
@@ -862,6 +892,9 @@
                 sh.tag("h1")
             )
             .content(
+                sh.tag("h2")
+            )
+            .content(
                 sh.tag("div")
                 .style("position", "relative")
                 .style("padding", "0.5rem")
@@ -904,8 +937,13 @@
 
         function update()
         {
-            var title = m_channel + " " + formatTime(new Date(m_start * 1000));
-            m_item.find("h1").html(sh.escapeHtml(title));
+            var begin = new Date(m_start * 1000);
+            var end = new Date((m_start + m_duration) * 1000);
+            var time = begin.toDateString() + ", " +
+                       formatTime(begin) + " - " +
+                       formatTime(end);
+            m_item.find("h1").html(sh.escapeHtml(m_channel));
+            m_item.find("h2").html(sh.escapeHtml(time));
         }
 
         this.get = function ()
@@ -1124,6 +1162,22 @@
                 .onClicked(function () { page.dispose(); page.pop_(); })
             )
             .right(
+                sh.element(sh.IconButton).icon("sh-icon-media-previous")
+                .onClicked(function ()
+                {
+                    var t = Math.max(now, beginTime.value() - 24 * 3600);
+                    page.find("timeline").scrollTo_(t);
+                })
+            )
+            .right(
+                sh.element(sh.IconButton).icon("sh-icon-media-next")
+                .onClicked(function ()
+                {
+                    var t = Math.min(now + 6 * 24 * 3600, beginTime.value() + 24 * 3600);
+                    page.find("timeline").scrollTo_(t);
+                })
+            )
+            .right(
                 sh.element(sh.IconButton).icon("sh-icon-search")
                 .onClicked(showSearchDialog)
             )
@@ -1271,7 +1325,7 @@
                     }))
                     .onClicked(function ()
                     {
-                        openEventPage(event.serviceId,
+                        showEventDialog(event.serviceId,
                                       event.eventId,
                                       event.name,
                                       event.short,
@@ -1292,43 +1346,37 @@
         });
     }
 
-    /* Opens the event information page.
+    /* Shows the event information dialog.
      */
-    function openEventPage(serviceId, eventId, name, short, scheduled)
+    function showEventDialog(serviceId, eventId, name, short, scheduled)
     {
         var event = null;
 
-        var page = sh.element(sh.NSPage)
-        .onSwipeBack(function () { page.pop_(); })
-        .header(
-            sh.element(sh.PageHeader).title(name).subtitle(short)
-            .left(
-                sh.element(sh.IconButton).icon("sh-icon-back")
-                .onClicked(function () { page.pop_(); })
-            )
+        var dlg = sh.element(sh.Dialog)
+        .title(m_channels.value()[serviceId])
+        .button(
+            sh.element(sh.Button).text("Close")
+            .onClicked(function () { dlg.close_(); })
         )
         .add(
-            sh.element(sh.Label).text(m_channels.value()[serviceId])
+            sh.element(sh.Headline)
+            .title(name)
+            .subtitle(short)
         )
         .add(
-            sh.element(sh.Labeled).text("Start")
+            sh.element(sh.Separator)
+        )
+        .add(
+            sh.element(sh.Labeled).text("Time")
             .add(
-                sh.element(sh.Label).id("start")
+                sh.element(sh.Text).id("time")
             )
-        )
-        .add(
-            sh.element(sh.Labeled).text("Duration")
-            .add(
-                sh.element(sh.Label).id("duration")
-            )
-        )
-        .add(
-            sh.element(sh.Label).id("description")
         )
         .add(
             sh.element(sh.Labeled).text("Record")
             .add(
                 sh.element(sh.Switch).id("recordSwitch")
+                .enabled(scheduled !== "conflict")
                 .checked(scheduled === "full")
                 .onToggled(function (checked)
                 {
@@ -1342,10 +1390,16 @@
                     }
                 })
             )
+        )
+        .add(
+            sh.element(sh.Separator)
+        )
+        .add(
+            sh.element(sh.Label).id("description")
         );
 
-        page.push_();
-
+        dlg.show_();
+        
         var busyIndicator = sh.element(sh.BusyPopup).text("Loading");
         busyIndicator.show_();
 
@@ -1362,9 +1416,13 @@
         .done(function (data, status, xhr)
         {
             console.log(data);
-            page.find("description").text(data.extended.text);
-            page.find("start").text(formatTime(new Date(data.start * 1000)));
-            page.find("duration").text(data.duration + " s");
+
+            var begin = new Date(data.start * 1000);
+            var end = new Date((data.start + data.duration) * 1000);
+
+            dlg.find("description").text(data.extended.text);
+            dlg.find("time").text(begin.toDateString() + ", " +
+                                  formatTime(begin) + " - " + formatTime(end));
             event = data;
         })
         .fail(function (xhr, status, err)
