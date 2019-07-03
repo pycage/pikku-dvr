@@ -76,13 +76,13 @@
      */
     function Timeline()
     {
-        Object.defineProperties(this, {
-            begin: { set: setBegin, get: begin, enumerable: true },
-            end: { set: setEnd, get: end, enumerable: true },
-            recordings: { set: setRecordings, get: recordings, enumerable: true },
-            scale: { set: setScale, get: scale, enumerable: true },
-            onMoved: { set: setOnMoved, get: onMoved, enumerable: true },
-            onClicked: { set: setOnClicked, get: onClicked, enumerable: true }
+        sh.defineProperties(this, {
+            begin: { set: setBegin, get: begin },
+            end: { set: setEnd, get: end },
+            recordings: { set: setRecordings, get: recordings },
+            scale: { set: setScale, get: scale },
+            onMoved: { set: setOnMoved, get: onMoved },
+            onClicked: { set: setOnClicked, get: onClicked }
         });
 
         var m_begin = 0;
@@ -306,11 +306,11 @@
      */
     function ChannelsListView()
     {
-        Object.defineProperties(this, {
-            channels: { set: setChannels, get: channels, enumerable: true },
-            services: { set: setServices, get: services, enumerable: true },
-            begin: { set: setBegin, get: begin, enumerable: true },
-            end: { set: setEnd, get: end, enumerable: true }
+        sh.defineProperties(this, {
+            channels: { set: setChannels, get: channels },
+            services: { set: setServices, get: services },
+            begin: { set: setBegin, get: begin },
+            end: { set: setEnd, get: end }
         });
 
         var base = new sh.ListView();
@@ -412,7 +412,7 @@
 
         this.scrollTo = function (serviceId)
         {
-            for (var i = 0; i < base.size(); ++i)
+            for (var i = 0; i < base.size; ++i)
             {
                 var item = base.item(i);
                 if (item.serviceId === serviceId)
@@ -427,14 +427,14 @@
      */
     function ChannelItem()
     {    
-        Object.defineProperties(this, {
-            title: { set: setTitle, get: title, enumerable: true },
-            serviceId: { set: setServiceId, get: serviceId, enumerable: true },
-            begin: { set: setBegin, get: begin, enumerable: true },
-            end: { set: setEnd, get: end, enumerable: true },
-            scale: { set: setScale, get: scale, enumerable: true },
-            active: { set: setActive, get: active, enumerable: true },
-            onClicked: { set: setOnClicked, get: onClicked, enumerable: true }
+        sh.defineProperties(this, {
+            title: { set: setTitle, get: title },
+            serviceId: { set: setServiceId, get: serviceId },
+            begin: { set: setBegin, get: begin },
+            end: { set: setEnd, get: end },
+            scale: { set: setScale, get: scale },
+            active: { set: setActive, get: active },
+            onClicked: { set: setOnClicked, get: onClicked }
         });
 
         var m_title = "";
@@ -711,9 +711,9 @@
      */
     function EventBox()
     {
-        Object.defineProperties(this, {
-            position: { set: setPosition, get: position, enumerable: true },
-            size: { set: setSize, get: size, enumerable: true }
+        sh.defineProperties(this, {
+            position: { set: setPosition, get: position },
+            size: { set: setSize, get: size }
         });
 
         var m_position = 0;
@@ -766,11 +766,11 @@
      */
     function EventItem()
     {
-        Object.defineProperties(this, {
-            scheduled: { set: setScheduled, get: scheduled, enumerable: true },
-            title: { set: setTitle, get: title, enumerable: true },
-            subtitle: { set: setSubtitle, get: subtitle, enumerable: true },
-            onClicked: { set: setOnClicked, get: onClicked, enumerable: true }
+        sh.defineProperties(this, {
+            scheduled: { set: setScheduled, get: scheduled },
+            title: { set: setTitle, get: title },
+            subtitle: { set: setSubtitle, get: subtitle },
+            onClicked: { set: setOnClicked, get: onClicked }
         });
 
         var m_scheduled = "no";
@@ -875,10 +875,10 @@
      */
     function SearchItem()
     {
-        Object.defineProperties(this, {
-            channel: { set: setChannel, get: channel, enumerable: true },
-            start: { set: setStart, get: start, enumerable: true },
-            duration: { set: setDuration, get: duration, enumerable: true }
+        sh.defineProperties(this, {
+            channel: { set: setChannel, get: channel },
+            start: { set: setStart, get: start },
+            duration: { set: setDuration, get: duration }
         });
 
         var m_channel = "";
@@ -980,10 +980,13 @@
         .done(function (data, status, xhr)
         {
             m_channels.assign(data);
-            m_services.assign(Object.keys(data).sort(function (a, b)
+            if (m_services.value().length === 0)
             {
-                return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
-            }));
+                m_services.assign(Object.keys(data).sort(function (a, b)
+                {
+                    return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
+                }));
+            }
             callback();
         })
         .fail(function (xhr, status, err)
@@ -1105,10 +1108,14 @@
         {
             menu.add(
                 sh.element(sh.MenuItem).text(m_channels.value()[serviceId])
+                .onClicked(function ()
+                {
+                    page.find("channelsList").scrollTo_(serviceId);
+                })
             );
         });
 
-        menu.popup_(page.header.get());
+        menu.popup_(page.header().get());
     }
 
     function showSearchDialog()
@@ -1156,7 +1163,7 @@
                 var d = new Date(beginTime.value() * 1000);
                 return d.toDateString();
             }))
-            .onClicked(function () { openChannelsMenu(page.get()); })
+            .onClicked(function () { openChannelsMenu(page); })
             .left(
                 sh.element(sh.IconButton).icon("sh-icon-back")
                 .onClicked(function () { page.dispose(); page.pop_(); })
@@ -1221,7 +1228,16 @@
      */
     function openChannelsPage()
     {
-        var services = m_services.value().slice();
+        var allServices = Object.keys(m_channels.value())
+        .sort(function (a, b)
+        {
+            return m_channels.value()[a] < m_channels.value()[b] ? -1 : 1;
+        });
+        var services = m_services.value().slice()
+        .sort(function (a, b)
+        {
+            return m_channels.value()[a] < m_channels.value()[b] ? -1 : 1;
+        });
 
         var page = sh.element(sh.NSPage)
         .onSwipeBack(function () { page.pop_(); })
@@ -1232,45 +1248,75 @@
                 .onClicked(function ()
                 {
                     m_services.assign(services);
+                    storage.store("/pikku-dvr/services", services, function ()
+                    {
+                        console.log("services saved");
+                    });
                     page.pop_();
                 })
             )
             .right(
                 sh.element(sh.IconButton).icon("sh-icon-menu")
+                .menu(
+                    sh.element(sh.Menu)
+                    .add(
+                        sh.element(sh.MenuItem).text("Select All")
+                        .onClicked(function ()
+                        {
+                            services = allServices.slice();
+                            var view = page.find("listview");
+                            for (var i = 0; i < view.size(); ++i)
+                            {
+                                view.item_(i).selected = true;
+                            }
+                        })
+                    )
+                    .add(
+                        sh.element(sh.MenuItem).text("Unselect All")
+                        .onClicked(function ()
+                        {
+                            services = [];
+                            var view = page.find("listview");
+                            for (var i = 0; i < view.size(); ++i)
+                            {
+                                view.item_(i).selected = false;
+                            }
+                        })
+                    )
+                )
             )
         )
         .add(
-            sh.element(sh.ListView).id("listview")
-        );
-
-        for (var serviceId in m_channels.value())
-        {
-            var item = sh.element(sh.ListItem).title(m_channels.value()[serviceId])
-            .selected(services.indexOf(serviceId) !== -1);
-            item.action(["sh-icon-checked-circle", function (svcId, item)
+            sh.element(sh.ListModelView).id("listview")
+            .delegate(function (serviceId)
             {
-                // closure
-                return function ()
+                var item = sh.element(sh.ListItem)
+                .title(m_channels.value()[serviceId])
+                .selected(services.indexOf(serviceId) !== -1)
+                .action(["sh-icon-checked-circle", function ()
                 {
-                    var listItem = item.get();
-                    listItem.selected = ! listItem.selected;
-                    if (listItem.selected)
+                    item.selected(! item.selected());
+                    if (item.selected())
                     {
-                        services.push(svcId);
+                        services.push(serviceId);
                     }
                     else
                     {
-                        var idx = services.indexOf(svcId);
+                        var idx = services.indexOf(serviceId);
                         if (idx !== -1)
                         {
                             services = services.splice(idx, 1);
                         }
                     }
-                };
-            }(serviceId, item)]);
+                }]);
 
-            page.find("listview").add(item);
-        }
+                return item.get();
+            })
+            .model(
+                sh.element(sh.ListModel)
+                .data(allServices)
+            )
+        );
 
         page.push_();
     }
@@ -1449,4 +1495,9 @@
         })
     );
 
+    storage.load("/pikku-dvr/services", function (value)
+    {
+        console.log("services loaded: " + value);
+        m_services.assign(value);
+    });
 })();
