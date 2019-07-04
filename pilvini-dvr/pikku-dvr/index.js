@@ -376,6 +376,11 @@
 
         function update()
         {
+            if (! m_channels)
+            {
+                return;
+            }
+
             m_items.forEach(function (item)
             {
                 item.get().get().remove();
@@ -1231,12 +1236,12 @@
         var allServices = Object.keys(m_channels.value())
         .sort(function (a, b)
         {
-            return m_channels.value()[a] < m_channels.value()[b] ? -1 : 1;
+            return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
         });
         var services = m_services.value().slice()
         .sort(function (a, b)
         {
-            return m_channels.value()[a] < m_channels.value()[b] ? -1 : 1;
+            return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
         });
 
         var page = sh.element(sh.NSPage)
@@ -1247,6 +1252,10 @@
                 sh.element(sh.IconButton).icon("sh-icon-back")
                 .onClicked(function ()
                 {
+                    services.sort(function (a, b)
+                    {
+                        return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
+                    });
                     m_services.assign(services);
                     storage.store("/pikku-dvr/services", services, function ()
                     {
@@ -1498,6 +1507,9 @@
     storage.load("/pikku-dvr/services", function (value)
     {
         console.log("services loaded: " + value);
-        m_services.assign(value);
+        if (value)
+        {
+            m_services.assign(value);
+        }
     });
 })();
