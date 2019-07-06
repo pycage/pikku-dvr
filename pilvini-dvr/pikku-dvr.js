@@ -17,6 +17,7 @@ function Service(config)
 {
     var m_pdvr = modPath.join(__dirname, "..", "pdvr");
     var m_epg = null;
+    var m_timestamp = 0;
 
     function send(response, data, callback)
     {
@@ -187,6 +188,14 @@ function Service(config)
     
     this.handleRequest = function (request, response, userContext, shares, callback)
     {
+        var now = Date.now();
+        if (now > m_timestamp + 12 * 3600 * 1000)
+        {
+            // force-reload the EPG from time to time
+            m_epg = null;
+            m_timestamp = now;
+        }
+
         var urlObj = modUrl.parse(request.url, true);
         var uri = urlObj.pathname.substr("/::pikku-dvr".length);
 

@@ -639,6 +639,7 @@
                     .html()
                 );
                 m_item.find("> h1").append(busyIndicator);
+                m_item.find("> div").css("visibility", "hidden");
     
                 console.log("fetch from server: " + m_begin + " - " + m_end);
                 $.ajax({
@@ -648,15 +649,15 @@
                     beforeSend: function (xhr)
                     {
                         xhr.setRequestHeader("x-pilvini-service", m_serviceId);
-                        xhr.setRequestHeader("x-pilvini-begin", m_begin);
-                        xhr.setRequestHeader("x-pilvini-end", m_end);
+                        xhr.setRequestHeader("x-pilvini-begin", m_begin - 12 * 3600);
+                        xhr.setRequestHeader("x-pilvini-end", m_end + 12 * 3600);
                     }
                 })
                 .done(function (data, status, xhr)
                 {
                     if (begin === m_begin && end === m_end)
                     {
-                        cacheEvents(m_begin, m_end, data.events);
+                        cacheEvents(m_begin - 12 * 3600, m_end + 12 * 3600, data.events);
                         render(data.events);
                     }
                 })
@@ -667,6 +668,7 @@
                 .always(function ()
                 {
                     busyIndicator.remove();
+                    m_item.find("> div").css("visibility", "visible");
                 });
     
             }, 300);
@@ -1171,13 +1173,29 @@
             .onClicked(function () { openChannelsMenu(page); })
             .left(
                 sh.element(sh.IconButton).icon("sh-icon-back")
-                .onClicked(function () { page.dispose(); page.pop_(); })
+                .onClicked(function () { page.pop_(); page.dispose(); })
             )
-            .right(
+            .left(
                 sh.element(sh.IconButton).icon("sh-icon-media-previous")
                 .onClicked(function ()
                 {
                     var t = Math.max(now, beginTime.value() - 24 * 3600);
+                    page.find("timeline").scrollTo_(t);
+                })
+            )
+            .left(
+                sh.element(sh.IconButton).icon("sh-icon-media-rwd")
+                .onClicked(function ()
+                {
+                    var t = Math.max(now, beginTime.value() - 3600);
+                    page.find("timeline").scrollTo_(t);
+                })
+            )
+            .right(
+                sh.element(sh.IconButton).icon("sh-icon-media-fwd")
+                .onClicked(function ()
+                {
+                    var t = Math.min(now + 6 * 24 * 3600, beginTime.value() + 3600);
                     page.find("timeline").scrollTo_(t);
                 })
             )
@@ -1213,7 +1231,7 @@
             .onClicked(function (serviceId, start)
             {
                 page.find("channelsList").scrollTo_(serviceId);
-                page.find("timeline").scrollTo_(start);
+                //page.find("timeline").scrollTo_(start);
             })
         );
         page.push_(function ()
@@ -1506,7 +1524,6 @@
 
     storage.load("/pikku-dvr/services", function (value)
     {
-        console.log("services loaded: " + value);
         if (value)
         {
             m_services.assign(value);
