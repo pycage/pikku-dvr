@@ -49,7 +49,7 @@ while true; do
     dvbv5-zap -c ${CHANNELS_CONF} -I zap -r "${CHANNEL_NAME}" >/dev/null 2>&1 &
     ZAP_PID=$!
 
-    dvbsnoop -s sec -b 0x12 -N 500 > "${EPG}/${SERVICE_ID}.eit"
+    dvbsnoop -s sec -b 0x12 -N 1000 > "${EPG}/${SERVICE_ID}.eit"
     kill ${ZAP_PID}
 
     log $(node `dirname $0`/js/epg-weaver.js ${EPG})
