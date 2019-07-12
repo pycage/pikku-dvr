@@ -302,132 +302,6 @@
         };
     }
 
-    /* Element representing the list of channels.
-     */
-    function ChannelsListView()
-    {
-        sh.defineProperties(this, {
-            channels: { set: setChannels, get: channels },
-            services: { set: setServices, get: services },
-            begin: { set: setBegin, get: begin },
-            end: { set: setEnd, get: end }
-        });
-
-        var base = new sh.ListView();
-        sh.extend(this, base);
-        base.get().css("margin-top", "3rem");
-
-        var m_channels = { };
-        var m_services = [];
-        var m_begin = 0;
-        var m_end = 0;
-
-        var m_items = [];
-
-        function setChannels(c)
-        {
-            m_channels = c;
-            update();
-        }
-
-        function channels()
-        {
-            return m_channels;
-        }
-
-        function setServices(s)
-        {
-            m_services = s;
-            update();
-        }
-
-        function services()
-        {
-            return m_services;
-        }
-
-        function setBegin(begin)
-        {
-            m_begin = begin;
-            m_items.forEach(function (item)
-            {
-                item.begin(begin);
-            });
-        }
-
-        function begin()
-        {
-            return m_begin;
-        }
-
-        function setEnd(end)
-        {
-            m_end = end;
-            m_items.forEach(function (item)
-            {
-                item.end(end);
-            });
-        }
-
-        function end()
-        {
-            return m_end;
-        }
-
-        function update()
-        {
-            if (! m_channels)
-            {
-                return;
-            }
-
-            m_items.forEach(function (item)
-            {
-                item.get().get().remove();
-                item.dispose();
-            });
-            m_items = [];
-
-            m_services.forEach(function (serviceId)
-            {
-                var item = sh.element(ChannelItem).title(m_channels[serviceId])
-                .serviceId(serviceId)
-                .begin(m_begin)
-                .end(m_end)
-                .onClicked(function (eventId, name, short, scheduled)
-                {
-                    showEventDialog(serviceId, eventId, name, short, scheduled);
-                });
-                
-                item.active(sh.predicate([m_scrollPosition], function ()
-                {
-                    var topPos = $(document).scrollTop();
-                    var bottomPos = topPos + $(window).height();
-                    var pos = item.get().get().offset().top;
-                    var height = item.get().get().height();
-                    //console.log("pos " + pos + " height " + height);
-                    return pos !== 0 && pos < bottomPos && pos + height > topPos;
-                }));
-                
-                m_items.push(item);
-                base.add(item.get());
-            });
-            m_scrollPosition.update();
-        }
-
-        this.scrollTo = function (serviceId)
-        {
-            for (var i = 0; i < base.size; ++i)
-            {
-                var item = base.item(i);
-                if (item.serviceId === serviceId)
-                {
-                    $(document).scrollTop(item.get().offset().top - $(window).height() / 2);
-                }
-            }
-        };
-    }
-
     /* Element representing a channel.
      */
     function ChannelItem()
@@ -1162,7 +1036,8 @@
 
         var now = new Date().getTime() / 1000;
 
-        var page = sh.element(sh.NSPage)
+        var page = sh.element(sh.NSPage);
+        page
         .header(
             sh.element(sh.PageHeader).title("DVR")
             .subtitle(sh.predicate([beginTime], function ()
@@ -1213,9 +1088,40 @@
             )
         )
         .add(
-            sh.element(ChannelsListView).id("channelsList")
-            .begin(beginTime)
-            .end(endTime)
+            sh.element(sh.ListModelView).id("channelsList")
+            .delegate(function (serviceId)
+            {
+                var item = sh.element(ChannelItem);
+                item
+                .title(m_channels.value()[serviceId] || "")
+                .serviceId(serviceId)
+                .end(endTime)
+                .begin(beginTime)
+                .active(sh.predicate([m_scrollPosition], function ()
+                {
+                    if (page.get().get().css("display") === "none")
+                    {
+                        return false;
+                    }
+                    else
+                    {
+                        var topPos = $(document).scrollTop();
+                        var bottomPos = topPos + $(window).height();
+                        var pos = item.get().get().offset().top;
+                        var height = item.get().get().height();
+    
+                        return pos !== 0 && pos < bottomPos && pos + height > topPos;
+                    }
+                }))
+                .onClicked(function (eventId, name, short, scheduled)
+                {
+                    showEventDialog(serviceId, eventId, name, short, scheduled);
+                });
+                return item.get();
+            })
+            .model(
+                sh.element(sh.ListModel).data(m_services)
+            )
         )
         .add(
             sh.element(Timeline).id("timeline")
@@ -1230,15 +1136,21 @@
             })
             .onClicked(function (serviceId, start)
             {
-                page.find("channelsList").scrollTo_(serviceId);
-                //page.find("timeline").scrollTo_(start);
+                var channelsListView = page.find("channelsList").get();
+                for (var i = 0; i < channelsListView.size; ++i)
+                {
+                    var item = channelsListView.item(i);
+                    if (item.serviceId === serviceId)
+                    {
+                        $(document).scrollTop(item.get().offset().top - $(window).height() / 2);
+                    }
+                }
             })
         );
         page.push_(function ()
         {
-            page.find("channelsList")
-            .channels(m_channels)
-            .services(m_services);
+            page.find("channelsList").get().get().css("margin-top", "3rem");
+            m_scrollPosition.update();
         });
 
         page.find("timeline").update_();
