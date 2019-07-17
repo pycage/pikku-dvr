@@ -1,11 +1,20 @@
 "use strict";
 
-(function ()
+const mods = [
+    "/::res/shellfish/core/low.js",
+    "/::res/shellfish/core/mid.js",
+    "/::res/shellfish/core/high.js",
+    "/::res/shell/files.js",
+    "/::res/shell/storage.js"
+];
+
+require(mods, function (low, mid, high, files, st)
 {
-    var m_channels = sh.binding(null);
-    var m_services = sh.binding([]);
-    var m_recordings = sh.binding([]);
-    var m_scrollPosition = sh.binding(0);
+    var storage = st.storage;
+    var m_channels = high.binding(null);
+    var m_services = high.binding([]);
+    var m_recordings = high.binding([]);
+    var m_scrollPosition = high.binding(0);
 
     /* Formats a Date object as HH:MM.
     */
@@ -76,7 +85,7 @@
      */
     function Timeline()
     {
-        sh.defineProperties(this, {
+        mid.defineProperties(this, {
             begin: { set: setBegin, get: begin },
             end: { set: setEnd, get: end },
             recordings: { set: setRecordings, get: recordings },
@@ -95,7 +104,7 @@
         var m_isDragging = false;
 
         var m_item = $(
-            sh.tag("div")
+            low.tag("div")
             .style("position", "fixed")
             .style("top", "3rem")
             .style("width", "100%")
@@ -106,10 +115,10 @@
             .style("overflow-x", "auto")
             .style("overflow-y", "hidden")
             .content(
-                sh.tag("div")
+                low.tag("div")
             )
             .content(
-                sh.tag("div")
+                low.tag("div")
             )
             .html()
         );
@@ -227,7 +236,7 @@
                 var width = rec.duration * 200 / 1800;
 
                 var marker = $(
-                    sh.tag("div")
+                    low.tag("div")
                     .style("position", "absolute")
                     .style("background-color", "var(--color-highlight-background)")
                     .style("top", "1rem")
@@ -236,7 +245,7 @@
                     .style("width", width + "px")
                     .style("overflow", "hidden")
                     .content(
-                        sh.tag("h2").content(rec.name)
+                        low.tag("h2").content(rec.name)
                     )
                     .html()
                 );
@@ -260,7 +269,7 @@
                 var label = formatTime(new Date(i * 1000));
 
                 var tick = $(
-                    sh.tag("div")
+                    low.tag("div")
                     .style("position", "absolute")
                     .style("left", pos + "px")
                     .style("width", 200 + "px")
@@ -306,7 +315,7 @@
      */
     function ChannelItem()
     {    
-        sh.defineProperties(this, {
+        mid.defineProperties(this, {
             title: { set: setTitle, get: title },
             serviceId: { set: setServiceId, get: serviceId },
             begin: { set: setBegin, get: begin },
@@ -328,15 +337,15 @@
         var m_cachedRanges = [];
 
         var m_item = $(
-            sh.tag("li")
+            low.tag("li")
             .style("background-color", "var(--color-content-background)")
             .style("height", "5rem")
             .style("overflow", "hidden")
             .content(
-                sh.tag("h1")
+                low.tag("h1")
             )
             .content(
-                sh.tag("div")
+                low.tag("div")
                 .style("position", "absolute")
                 .style("top", "1.5rem")
                 .style("left", "0")
@@ -350,7 +359,7 @@
         function setTitle(title)
         {
             m_title = title;
-            m_item.find("> h1").html(sh.escapeHtml(title) + " ");
+            m_item.find("> h1").html(low.escapeHtml(title) + " ");
         }
 
         function title()
@@ -509,7 +518,7 @@
                 }
 
                 var busyIndicator = $(
-                    sh.tag("span").class("sh-busy-indicator")
+                    low.tag("span").class("sh-busy-indicator")
                     .html()
                 );
                 m_item.find("> h1").append(busyIndicator);
@@ -556,15 +565,15 @@
                 var pos = (event.start - m_begin) * (200 / 1800) + 2;
                 var width = event.duration * (200 / 1800) - 4;
 
-                var eventBox = sh.element(EventBox);
+                var eventBox = high.element(EventBox);
                 eventBox
                 .position(pos)
                 .size(width)
                 .add(
-                    sh.element(EventItem).id("item")
+                    high.element(EventItem).id("item")
                     .title(event.name)
                     .subtitle(event.short)
-                    .scheduled(sh.predicate([m_recordings], function ()
+                    .scheduled(high.predicate([m_recordings], function ()
                     {
                         return scheduled(m_serviceId, event.start, event.start + event.duration);
                     }))
@@ -592,7 +601,7 @@
      */
     function EventBox()
     {
-        sh.defineProperties(this, {
+        mid.defineProperties(this, {
             position: { set: setPosition, get: position },
             size: { set: setSize, get: size }
         });
@@ -601,7 +610,7 @@
         var m_size = 10;
 
         var m_item = $(
-            sh.tag("div")
+            low.tag("div")
             .style("position", "absolute")
             .style("top", "2px")
             .style("left", 0 + "px")
@@ -647,7 +656,7 @@
      */
     function EventItem()
     {
-        sh.defineProperties(this, {
+        mid.defineProperties(this, {
             scheduled: { set: setScheduled, get: scheduled },
             title: { set: setTitle, get: title },
             subtitle: { set: setSubtitle, get: subtitle },
@@ -660,7 +669,7 @@
         var m_onClicked = null;
 
         var m_item = $(
-            sh.tag("div")
+            low.tag("div")
             .style("position", "relative")
             .style("overflow", "hidden")
             .style("height", "3rem")
@@ -671,13 +680,13 @@
             .style("border-radius", "0.25rem")
             .on("click", "")
             .content(
-                sh.tag("h1")
+                low.tag("h1")
             )
             .content(
-                sh.tag("h2")
+                low.tag("h2")
             )
             .content(
-                sh.tag("div")
+                low.tag("div")
                 .style("position", "absolute")
                 .style("right", "0.5rem")
                 .style("bottom", "0.5rem")
@@ -717,7 +726,7 @@
         function setTitle(title)
         {
             m_title = title;
-            m_item.find("h1").html(sh.escapeHtml(title));
+            m_item.find("h1").html(low.escapeHtml(title));
         }
 
         function title()
@@ -728,7 +737,7 @@
         function setSubtitle(subtitle)
         {
             m_subtitle = subtitle;
-            m_item.find("h2").html(sh.escapeHtml(subtitle));
+            m_item.find("h2").html(low.escapeHtml(subtitle));
         }
 
         function subtitle()
@@ -756,7 +765,7 @@
      */
     function SearchItem()
     {
-        sh.defineProperties(this, {
+        mid.defineProperties(this, {
             channel: { set: setChannel, get: channel },
             start: { set: setStart, get: start },
             duration: { set: setDuration, get: duration }
@@ -767,16 +776,16 @@
         var m_duration = 0;
 
         var m_item = $(
-            sh.tag("li")
+            low.tag("li")
             .style("background-color", "var(--color-content-background)")
             .content(
-                sh.tag("h1")
+                low.tag("h1")
             )
             .content(
-                sh.tag("h2")
+                low.tag("h2")
             )
             .content(
-                sh.tag("div")
+                low.tag("div")
                 .style("position", "relative")
                 .style("padding", "0.5rem")
             )
@@ -823,8 +832,8 @@
             var time = begin.toDateString() + ", " +
                        formatTime(begin) + " - " +
                        formatTime(end);
-            m_item.find("h1").html(sh.escapeHtml(m_channel));
-            m_item.find("h2").html(sh.escapeHtml(time));
+            m_item.find("h1").html(low.escapeHtml(m_channel));
+            m_item.find("h2").html(low.escapeHtml(time));
         }
 
         this.get = function ()
@@ -850,7 +859,7 @@
             return;
         }
 
-        var busyIndicator = sh.element(sh.BusyPopup).text("Loading");
+        var busyIndicator = high.element(mid.BusyPopup).text("Loading");
         busyIndicator.show_();
 
         $.ajax({
@@ -921,7 +930,7 @@
             name: name
         };
 
-        var busyIndicator = sh.element(sh.BusyPopup).text("Scheduling");
+        var busyIndicator = high.element(mid.BusyPopup).text("Scheduling");
         busyIndicator.show_();
 
         $.ajax({
@@ -952,7 +961,7 @@
             at: at
         };
 
-        var busyIndicator = sh.element(sh.BusyPopup).text("Canceling");
+        var busyIndicator = high.element(mid.BusyPopup).text("Canceling");
         busyIndicator.show_();
 
         $.ajax({
@@ -976,19 +985,19 @@
 
     function openChannelsMenu(page)
     {
-        var menu = sh.element(sh.Menu)
+        var menu = high.element(mid.Menu)
         .add(
-            sh.element(sh.MenuItem).text("Edit Favorites...")
+            high.element(mid.MenuItem).text("Edit Favorites...")
             .onClicked(openChannelsPage)
         )
         .add(
-            sh.element(sh.Separator)
+            high.element(mid.Separator)
         );
 
         m_services.value().forEach(function (serviceId)
         {
             menu.add(
-                sh.element(sh.MenuItem).text(m_channels.value()[serviceId])
+                high.element(mid.MenuItem).text(m_channels.value()[serviceId])
                 .onClicked(function ()
                 {
                     page.find("channelsList").scrollTo_(serviceId);
@@ -1001,9 +1010,9 @@
 
     function showSearchDialog()
     {
-        var dlg = sh.element(sh.Dialog).title("Search")
+        var dlg = high.element(mid.Dialog).title("Search")
         .button(
-            sh.element(sh.Button).text("Search")
+            high.element(mid.Button).text("Search")
             .onClicked(function ()
             {
                 var searchTerm = dlg.find("input").get().text;
@@ -1012,16 +1021,16 @@
             })
         )
         .button(
-            sh.element(sh.Button).text("Cancel")
+            high.element(mid.Button).text("Cancel")
             .onClicked(function ()
             {
                 dlg.close_();
             })
         )
         .add(
-            sh.element(sh.Labeled).text("Search for:")
+            high.element(mid.Labeled).text("Search for:")
             .add(
-                sh.element(sh.TextInput).id("input")
+                high.element(mid.TextInput).id("input")
             )
         );
         dlg.show_();
@@ -1031,27 +1040,27 @@
      */
     function openPage()
     {
-        var beginTime = sh.binding(0);
-        var endTime = sh.binding(0);
+        var beginTime = high.binding(0);
+        var endTime = high.binding(0);
 
         var now = new Date().getTime() / 1000;
 
-        var page = sh.element(sh.NSPage);
+        var page = high.element(mid.Page);
         page
         .header(
-            sh.element(sh.PageHeader).title("DVR")
-            .subtitle(sh.predicate([beginTime], function ()
+            high.element(mid.PageHeader).title("DVR")
+            .subtitle(high.predicate([beginTime], function ()
             {
                 var d = new Date(beginTime.value() * 1000);
                 return d.toDateString();
             }))
             .onClicked(function () { openChannelsMenu(page); })
             .left(
-                sh.element(sh.IconButton).icon("sh-icon-back")
+                high.element(mid.IconButton).icon("sh-icon-back")
                 .onClicked(function () { page.pop_(); page.dispose(); })
             )
             .left(
-                sh.element(sh.IconButton).icon("sh-icon-media-previous")
+                high.element(mid.IconButton).icon("sh-icon-media-previous")
                 .onClicked(function ()
                 {
                     var t = Math.max(now, beginTime.value() - 24 * 3600);
@@ -1059,7 +1068,7 @@
                 })
             )
             .left(
-                sh.element(sh.IconButton).icon("sh-icon-media-rwd")
+                high.element(mid.IconButton).icon("sh-icon-media-rwd")
                 .onClicked(function ()
                 {
                     var t = Math.max(now, beginTime.value() - 3600);
@@ -1067,7 +1076,7 @@
                 })
             )
             .right(
-                sh.element(sh.IconButton).icon("sh-icon-media-fwd")
+                high.element(mid.IconButton).icon("sh-icon-media-fwd")
                 .onClicked(function ()
                 {
                     var t = Math.min(now + 6 * 24 * 3600, beginTime.value() + 3600);
@@ -1075,7 +1084,7 @@
                 })
             )
             .right(
-                sh.element(sh.IconButton).icon("sh-icon-media-next")
+                high.element(mid.IconButton).icon("sh-icon-media-next")
                 .onClicked(function ()
                 {
                     var t = Math.min(now + 6 * 24 * 3600, beginTime.value() + 24 * 3600);
@@ -1083,21 +1092,21 @@
                 })
             )
             .right(
-                sh.element(sh.IconButton).icon("sh-icon-search")
+                high.element(mid.IconButton).icon("sh-icon-search")
                 .onClicked(showSearchDialog)
             )
         )
         .add(
-            sh.element(sh.ListModelView).id("channelsList")
+            high.element(mid.ListModelView).id("channelsList")
             .delegate(function (serviceId)
             {
-                var item = sh.element(ChannelItem);
+                var item = high.element(ChannelItem);
                 item
                 .title(m_channels.value()[serviceId] || "")
                 .serviceId(serviceId)
                 .end(endTime)
                 .begin(beginTime)
-                .active(sh.predicate([m_scrollPosition], function ()
+                .active(high.predicate([m_scrollPosition], function ()
                 {
                     if (page.get().get().css("display") === "none")
                     {
@@ -1120,11 +1129,11 @@
                 return item.get();
             })
             .model(
-                sh.element(sh.ListModel).data(m_services)
+                high.element(mid.ListModel).data(m_services)
             )
         )
         .add(
-            sh.element(Timeline).id("timeline")
+            high.element(Timeline).id("timeline")
             .begin(now - 1800)
             .end(now + 7 * 24 * 3600)
             .recordings(m_recordings)
@@ -1174,12 +1183,12 @@
             return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
         });
 
-        var page = sh.element(sh.NSPage)
+        var page = high.element(mid.Page)
         .onSwipeBack(function () { page.pop_(); })
         .header(
-            sh.element(sh.PageHeader).title("Channels")
+            high.element(mid.PageHeader).title("Channels")
             .left(
-                sh.element(sh.IconButton).icon("sh-icon-back")
+                high.element(mid.IconButton).icon("sh-icon-back")
                 .onClicked(function ()
                 {
                     services.sort(function (a, b)
@@ -1195,11 +1204,11 @@
                 })
             )
             .right(
-                sh.element(sh.IconButton).icon("sh-icon-menu")
+                high.element(mid.IconButton).icon("sh-icon-menu")
                 .menu(
-                    sh.element(sh.Menu)
+                    high.element(mid.Menu)
                     .add(
-                        sh.element(sh.MenuItem).text("Select All")
+                        high.element(mid.MenuItem).text("Select All")
                         .onClicked(function ()
                         {
                             services = allServices.slice();
@@ -1211,7 +1220,7 @@
                         })
                     )
                     .add(
-                        sh.element(sh.MenuItem).text("Unselect All")
+                        high.element(mid.MenuItem).text("Unselect All")
                         .onClicked(function ()
                         {
                             services = [];
@@ -1226,10 +1235,10 @@
             )
         )
         .add(
-            sh.element(sh.ListModelView).id("listview")
+            high.element(mid.ListModelView).id("listview")
             .delegate(function (serviceId)
             {
-                var item = sh.element(sh.ListItem)
+                var item = high.element(mid.ListItem)
                 .title(m_channels.value()[serviceId])
                 .selected(services.indexOf(serviceId) !== -1)
                 .action(["sh-icon-checked-circle", function ()
@@ -1252,7 +1261,7 @@
                 return item.get();
             })
             .model(
-                sh.element(sh.ListModel)
+                high.element(mid.ListModel)
                 .data(allServices)
             )
         );
@@ -1264,17 +1273,17 @@
      */
     function openSearchPage(searchTerm)
     {
-        var page = sh.element(sh.NSPage)
+        var page = high.element(mid.Page)
         .onSwipeBack(function () { page.pop_(); })
         .header(
-            sh.element(sh.PageHeader).title("Search").subtitle(searchTerm)
+            high.element(mid.PageHeader).title("Search").subtitle(searchTerm)
             .left(
-                sh.element(sh.IconButton).icon("sh-icon-back")
+                high.element(mid.IconButton).icon("sh-icon-back")
                 .onClicked(function () { page.pop_(); })
             )
         )
         .add(
-            sh.element(sh.ListView).id("list")
+            high.element(mid.ListView).id("list")
         );
         page.push_();
 
@@ -1282,7 +1291,7 @@
             searchTerm: searchTerm
         };
 
-        var busyIndicator = sh.element(sh.BusyPopup).text("Searching");
+        var busyIndicator = high.element(mid.BusyPopup).text("Searching");
         busyIndicator.show_();
 
         $.ajax({
@@ -1295,16 +1304,16 @@
         {
             data.result.forEach(function (event)
             {
-                var item = sh.element(SearchItem);
+                var item = high.element(SearchItem);
                 item
                 .channel(m_channels.value()[event.serviceId] || "?" + event.serviceId)
                 .start(event.start)
                 .duration(event.duration)
                 .add(
-                    sh.element(EventItem).id("eventItem")
+                    high.element(EventItem).id("eventItem")
                     .title(event.name)
                     .subtitle(event.short)
-                    .scheduled(sh.predicate([m_recordings], function ()
+                    .scheduled(high.predicate([m_recordings], function ()
                     {
                         return scheduled(event.serviceId, event.start, event.start + event.duration);
                     }))
@@ -1337,30 +1346,30 @@
     {
         var event = null;
 
-        var dlg = sh.element(sh.Dialog)
+        var dlg = high.element(mid.Dialog)
         .title(m_channels.value()[serviceId])
         .button(
-            sh.element(sh.Button).text("Close")
+            high.element(mid.Button).text("Close")
             .onClicked(function () { dlg.close_(); })
         )
         .add(
-            sh.element(sh.Headline)
+            high.element(mid.Headline)
             .title(name)
             .subtitle(short)
         )
         .add(
-            sh.element(sh.Separator)
+            high.element(mid.Separator)
         )
         .add(
-            sh.element(sh.Labeled).text("Time")
+            high.element(mid.Labeled).text("Time")
             .add(
-                sh.element(sh.Text).id("time")
+                high.element(mid.Text).id("time")
             )
         )
         .add(
-            sh.element(sh.Labeled).text("Record")
+            high.element(mid.Labeled).text("Record")
             .add(
-                sh.element(sh.Switch).id("recordSwitch")
+                high.element(mid.Switch).id("recordSwitch")
                 .enabled(scheduled !== "conflict")
                 .checked(scheduled === "full")
                 .onToggled(function (checked)
@@ -1377,15 +1386,15 @@
             )
         )
         .add(
-            sh.element(sh.Separator)
+            high.element(mid.Separator)
         )
         .add(
-            sh.element(sh.Label).id("description")
+            high.element(mid.Label).id("description")
         );
 
         dlg.show_();
         
-        var busyIndicator = sh.element(sh.BusyPopup).text("Loading");
+        var busyIndicator = high.element(mid.BusyPopup).text("Loading");
         busyIndicator.show_();
 
         $.ajax({
@@ -1427,7 +1436,7 @@
 
     files.actionsMenu().find("tools-menu")
     .add(
-        sh.element(sh.MenuItem).text("DVR")
+        high.element(mid.MenuItem).text("DVR")
         .onClicked(function ()
         {
             loadChannels(openPage);
