@@ -1253,7 +1253,7 @@ require(mods, function (low, mid, high, files, st)
                         var idx = services.indexOf(serviceId);
                         if (idx !== -1)
                         {
-                            services = services.splice(idx, 1);
+                            services.splice(idx, 1);
                         }
                     }
                 }]);
