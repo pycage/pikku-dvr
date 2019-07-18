@@ -1013,6 +1013,7 @@ require(mods, function (low, mid, high, files, st)
         var dlg = high.element(mid.Dialog).title("Search")
         .button(
             high.element(mid.Button).text("Search")
+            .isDefault(true)
             .onClicked(function ()
             {
                 var searchTerm = dlg.find("input").get().text;
