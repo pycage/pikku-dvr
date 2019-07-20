@@ -1451,4 +1451,4 @@ require(mods, function (low, mid, high, files, st)
             m_services.assign(value);
         }
     });
-})();
+});
