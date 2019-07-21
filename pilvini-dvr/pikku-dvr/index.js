@@ -531,6 +531,7 @@ require(mods, function (low, mid, high, files, st)
                     dataType: "json",
                     beforeSend: function (xhr)
                     {
+                        xhr.overrideMimeType("application/json");
                         xhr.setRequestHeader("x-pilvini-service", m_serviceId);
                         xhr.setRequestHeader("x-pilvini-begin", m_begin - 12 * 3600);
                         xhr.setRequestHeader("x-pilvini-end", m_end + 12 * 3600);
@@ -865,7 +866,11 @@ require(mods, function (low, mid, high, files, st)
         $.ajax({
             type: "GET",
             url: "/::pikku-dvr/channels",
-            dataType: "json"
+            dataType: "json",
+            beforeSend: function (xhr)
+            {
+                xhr.overrideMimeType("application/json");
+            }
         })
         .done(function (data, status, xhr)
         {
@@ -897,7 +902,11 @@ require(mods, function (low, mid, high, files, st)
         $.ajax({
             type: "GET",
             url: "/::pikku-dvr/recordings",
-            dataType: "json"
+            dataType: "json",
+            beforeSend: function (xhr)
+            {
+                xhr.overrideMimeType("application/json");
+            }
         })
         .done(function (data, status, xhr)
         {
@@ -1404,6 +1413,7 @@ require(mods, function (low, mid, high, files, st)
             dataType: "json",
             beforeSend: function (xhr)
             {
+                xhr.overrideMimeType("application/json");
                 xhr.setRequestHeader("x-pilvini-service", serviceId);
                 xhr.setRequestHeader("x-pilvini-event", eventId);
             }
