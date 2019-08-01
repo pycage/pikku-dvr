@@ -1066,11 +1066,11 @@ require(mods, function (low, mid, high, files, st)
             }))
             .onClicked(function () { openChannelsMenu(page); })
             .left(
-                high.element(mid.IconButton).icon("sh-icon-arrow_back")
+                high.element(mid.Button).icon("arrow_back")
                 .onClicked(function () { page.pop_(); page.dispose(); })
             )
             .left(
-                high.element(mid.IconButton).icon("sh-icon-skip_previous")
+                high.element(mid.Button).icon("skip_previous")
                 .onClicked(function ()
                 {
                     var t = Math.max(now, beginTime.value() - 24 * 3600);
@@ -1078,7 +1078,7 @@ require(mods, function (low, mid, high, files, st)
                 })
             )
             .left(
-                high.element(mid.IconButton).icon("sh-icon-fast_rewind")
+                high.element(mid.Button).icon("fast_rewind")
                 .onClicked(function ()
                 {
                     var t = Math.max(now, beginTime.value() - 3600);
@@ -1086,7 +1086,7 @@ require(mods, function (low, mid, high, files, st)
                 })
             )
             .right(
-                high.element(mid.IconButton).icon("sh-icon-fast_forward")
+                high.element(mid.Button).icon("fast_forward")
                 .onClicked(function ()
                 {
                     var t = Math.min(now + 6 * 24 * 3600, beginTime.value() + 3600);
@@ -1094,7 +1094,7 @@ require(mods, function (low, mid, high, files, st)
                 })
             )
             .right(
-                high.element(mid.IconButton).icon("sh-icon-skip_next")
+                high.element(mid.Button).icon("skip_next")
                 .onClicked(function ()
                 {
                     var t = Math.min(now + 6 * 24 * 3600, beginTime.value() + 24 * 3600);
@@ -1102,7 +1102,7 @@ require(mods, function (low, mid, high, files, st)
                 })
             )
             .right(
-                high.element(mid.IconButton).icon("sh-icon-search")
+                high.element(mid.Button).icon("search")
                 .onClicked(showSearchDialog)
             )
         )
@@ -1198,7 +1198,7 @@ require(mods, function (low, mid, high, files, st)
         .header(
             high.element(mid.PageHeader).title("Channels")
             .left(
-                high.element(mid.IconButton).icon("sh-icon-arrow_back")
+                high.element(mid.Button).icon("arrow_back")
                 .onClicked(function ()
                 {
                     services.sort(function (a, b)
@@ -1214,7 +1214,7 @@ require(mods, function (low, mid, high, files, st)
                 })
             )
             .right(
-                high.element(mid.IconButton).icon("sh-icon-menu")
+                high.element(mid.Button).icon("menu")
                 .menu(
                     high.element(mid.Menu)
                     .add(
@@ -1288,7 +1288,7 @@ require(mods, function (low, mid, high, files, st)
         .header(
             high.element(mid.PageHeader).title("Search").subtitle(searchTerm)
             .left(
-                high.element(mid.IconButton).icon("sh-icon-arrow_back")
+                high.element(mid.Button).icon("arrow_back")
                 .onClicked(function () { page.pop_(); })
             )
         )
