@@ -518,7 +518,7 @@ require(mods, function (low, mid, high, files, st)
                 }
 
                 var busyIndicator = $(
-                    low.tag("span").class("sh-busy-indicator")
+                    low.tag("span").class("sh-icon-busy-indicator")
                     .html()
                 );
                 m_item.find("> h1").append(busyIndicator);
