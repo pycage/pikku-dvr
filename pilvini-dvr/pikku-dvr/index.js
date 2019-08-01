@@ -1067,7 +1067,7 @@ require(mods, function (low, mid, high, files, st)
             .onClicked(function () { openChannelsMenu(page); })
             .left(
                 high.element(mid.Button).icon("arrow_back")
-                .onClicked(function () { page.pop_(); page.dispose(); })
+                .onClicked(function () { page.pop_(); page.discard(); })
             )
             .left(
                 high.element(mid.Button).icon("skip_previous")
