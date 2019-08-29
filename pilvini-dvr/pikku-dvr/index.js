@@ -322,7 +322,8 @@ require(mods, function (low, mid, high, files, st)
             end: { set: setEnd, get: end },
             scale: { set: setScale, get: scale },
             active: { set: setActive, get: active },
-            onClicked: { set: setOnClicked, get: onClicked }
+            onClicked: { set: setOnClicked, get: onClicked },
+            onTitleClicked: { set: setOnTitleClicked, get: onTitleClicked }
         });
 
         var m_title = "";
@@ -332,6 +333,7 @@ require(mods, function (low, mid, high, files, st)
         var m_scale = 1;
         var m_isActive = false;
         var m_onClicked = null;
+        var m_onTitleClicked = null;
 
         var m_cachedEvents = [];
         var m_cachedRanges = [];
@@ -355,6 +357,13 @@ require(mods, function (low, mid, high, files, st)
             .html()
         );
 
+        m_item.find("> h1").on("click", function ()
+        {
+            if (m_onTitleClicked)
+            {
+                m_onTitleClicked();
+            }
+        });
 
         function setTitle(title)
         {
@@ -444,6 +453,16 @@ require(mods, function (low, mid, high, files, st)
         function onClicked()
         {
             return m_onClicked;
+        }
+
+        function setOnTitleClicked(cb)
+        {
+            m_onTitleClicked = cb;
+        }
+
+        function onTitleClicked()
+        {
+            return m_onTitleClicked;
         }
 
         function cacheEvents(begin, end, events)
@@ -997,7 +1016,7 @@ require(mods, function (low, mid, high, files, st)
         var menu = high.element(mid.Menu)
         .add(
             high.element(mid.MenuItem).text("Edit Favorites...")
-            .onClicked(openChannelsPage)
+            .onClicked(openChannelsEditorPage)
         )
         .add(
             high.element(mid.Separator)
@@ -1132,6 +1151,10 @@ require(mods, function (low, mid, high, files, st)
                         return pos !== 0 && pos < bottomPos && pos + height > topPos;
                     }
                 }))
+                .onTitleClicked(function ()
+                {
+                    openChannelPage(serviceId);
+                })
                 .onClicked(function (eventId, name, short, scheduled)
                 {
                     showEventDialog(serviceId, eventId, name, short, scheduled);
@@ -1177,10 +1200,97 @@ require(mods, function (low, mid, high, files, st)
         loadRecordings();
     }
 
+    /* Opens the channel page.
+     */
+    function openChannelPage(serviceId)
+    {
+        var page = high.element(mid.Page);
+        page
+        .onSwipeBack(function () { page.pop_(); })
+        .header(
+            high.element(mid.PageHeader)
+            .title(m_channels.val[serviceId] || "?")
+            .subtitle(
+                high.predicate([high.ref(page, "model", "size")], function (size)
+                {
+                    return size.val + " items";
+                })
+            )
+            .left(
+                high.element(mid.Button).icon("arrow_back")
+                .onClicked(function () { page.pop_(); })
+            )
+        )
+        .add(
+            high.element(mid.ListModelView)
+            .delegate(function (event)
+            {
+                var item = high.element(SearchItem);
+                item
+                .channel("")
+                .start(event.start)
+                .duration(event.duration)
+                .add(
+                    high.element(EventItem).id("eventItem")
+                    .title(event.name)
+                    .subtitle(event.short)
+                    .scheduled(high.predicate([m_recordings], function ()
+                    {
+                        return scheduled(event.serviceId, event.start, event.start + event.duration);
+                    }))
+                    .onClicked(function ()
+                    {
+                        showEventDialog(serviceId,
+                                        event.eventId,
+                                        event.name,
+                                        event.short,
+                                        item.find("eventItem").scheduled());
+                    })
+                );
+                return item.get();
+            })
+            .model(
+                high.element(mid.ListModel).id("model")
+                .data([])
+            )
+        );
+
+        page.get().push();
+
+        var busyIndicator = high.element(mid.BusyPopup).text("Loading");
+        busyIndicator.get().show();
+
+        $.ajax({
+            type: "GET",
+            url: "/::pikku-dvr/epg",
+            dataType: "json",
+            beforeSend: function (xhr)
+            {
+                xhr.overrideMimeType("application/json");
+                xhr.setRequestHeader("x-pilvini-service", serviceId);
+                xhr.setRequestHeader("x-pilvini-begin", "0");
+                xhr.setRequestHeader("x-pilvini-end", "10000000000");
+            }
+        })
+        .done(function (data, status, xhr)
+        {
+            console.log("got " + data.events.length + " events");
+            page.find("model").data(data.events);
+        })
+        .fail(function (xhr, status, err)
+        {
+            ui.showError("Could not load channel: " + err);
+        })
+        .always(function ()
+        {
+            busyIndicator.get().hide();
+        })
+    }
+
 
     /* Opens the channels editor page.
      */
-    function openChannelsPage()
+    function openChannelsEditorPage()
     {
         var allServices = Object.keys(m_channels.value())
         .sort(function (a, b)
@@ -1312,7 +1422,12 @@ require(mods, function (low, mid, high, files, st)
         })
         .done(function (data, status, xhr)
         {
-            data.result.forEach(function (event)
+            data.result
+            .filter(function (event)
+            {
+                return m_services.val.indexOf(event.serviceId) !== -1;
+            })
+            .forEach(function (event)
             {
                 var item = high.element(SearchItem);
                 item
@@ -1330,10 +1445,10 @@ require(mods, function (low, mid, high, files, st)
                     .onClicked(function ()
                     {
                         showEventDialog(event.serviceId,
-                                      event.eventId,
-                                      event.name,
-                                      event.short,
-                                      item.find("eventItem").scheduled());
+                                        event.eventId,
+                                        event.name,
+                                        event.short,
+                                        item.find("eventItem").scheduled());
                     })
                 );
 
