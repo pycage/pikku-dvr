@@ -1133,6 +1133,10 @@ require(mods, function (low, mid, high, files, st)
                 high.element(mid.Button).icon("search")
                 .onClicked(showSearchDialog)
             )
+            .right(
+                high.element(mid.Button).icon("ondemand_video")
+                .onClicked(openRecordingsPage)
+            )
         )
         .add(
             high.element(mid.ListModelView).id("channelsList")
@@ -1293,7 +1297,62 @@ require(mods, function (low, mid, high, files, st)
         .always(function ()
         {
             busyIndicator.get().hide();
-        })
+        });
+    }
+
+    /* Opens the recordings page.
+     */
+    function openRecordingsPage()
+    {
+        var page = high.element(mid.Page);
+        page
+        .onSwipeBack(function () { page.pop_(); })
+        .header(
+            high.element(mid.PageHeader)
+            .title("Recordings")
+            .subtitle(
+                high.predicate([high.ref(page, "model", "size")], function (size)
+                {
+                    return size.val + " items";
+                })
+            )
+            .left(
+                high.element(mid.Button).icon("arrow_back")
+                .onClicked(function () { page.pop_(); })
+            )
+        )
+        .add(
+            high.element(mid.ListModelView)
+            .delegate(function (rec)
+            {
+                var item = high.element(SearchItem);
+                item
+                .channel(m_channels.val[rec.serviceId] || "" + rec.serviceId)
+                .start(rec.start)
+                .duration(rec.duration)
+                .add(
+                    high.element(EventItem).id("eventItem")
+                    .title(rec.name)
+                    .subtitle(rec.short)
+                    .scheduled("full")
+                    .onClicked(function ()
+                    {
+                        showEventDialog(rec.serviceId,
+                                        rec.eventId,
+                                        rec.name,
+                                        rec.short,
+                                        item.find("eventItem").scheduled());
+                    })
+                );
+                return item.get();
+            })
+            .model(
+                high.element(mid.ListModel).id("model")
+                .data(m_recordings)
+            )
+        );
+
+        page.get().push();
     }
 
 
@@ -1546,13 +1605,16 @@ require(mods, function (low, mid, high, files, st)
         {
             console.log(data);
 
-            var begin = new Date(data.start * 1000);
-            var end = new Date((data.start + data.duration) * 1000);
-
-            dlg.find("description").text(data.extended.text);
-            dlg.find("time").text(begin.toDateString() + ", " +
-                                  formatTime(begin) + " - " + formatTime(end));
-            event = data;
+            if (data.start)
+            {
+                var begin = new Date(data.start * 1000);
+                var end = new Date((data.start + data.duration) * 1000);
+    
+                dlg.find("description").text(data.extended.text);
+                dlg.find("time").text(begin.toDateString() + ", " +
+                                      formatTime(begin) + " - " + formatTime(end));
+                event = data;
+            }
         })
         .fail(function (xhr, status, err)
         {

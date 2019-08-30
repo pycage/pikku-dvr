@@ -70,6 +70,26 @@ function Service(config)
             return "0";
         }
 
+        function getEvent(serviceId, at)
+        {
+            var events = Object.keys(m_epg.services[serviceId])
+            .filter(function (eventId)
+            {
+                var event = m_epg.services[serviceId][eventId];
+                return event.start <= at && event.start + event.duration >= at;
+            })
+            .map(function (eventId)
+            {
+                return m_epg.services[serviceId][eventId];
+            });
+            return events[0] || { };
+        }
+
+        if (! m_epg)
+        {
+            m_epg = loadEpg();
+        }
+
         var channelsMap = loadChannels();
         var recordings = [];
         var recs = modChildProcess.execSync(m_pdvr + " get-recordings");
@@ -78,11 +98,19 @@ function Service(config)
             var parts = line.split("|");
             if (parts.length >= 4)
             {
+                var start = Number.parseInt(parts[0]);
+                var duration = Number.parseInt(parts[1]);
+                var serviceId = getServiceId(parts[2]);
+                var event = getEvent(serviceId, start + duration / 2);
+
                 recordings.push({
-                    start: Number.parseInt(parts[0]),
-                    duration: Number.parseInt(parts[1]),
-                    serviceId: getServiceId(parts[2]),
-                    name: parts[3]
+                    eventId: event.eventId || "0",
+                    start: start,
+                    duration: duration,
+                    serviceId: serviceId,
+                    name: (event.short || { }).name || parts[3],
+                    short: (event.short || { }).text || "",
+                    info: (event.extended || { }).text || ""
                 });
             }
         });
