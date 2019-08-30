@@ -1028,7 +1028,16 @@ require(mods, function (low, mid, high, files, st)
                 high.element(mid.MenuItem).text(m_channels.value()[serviceId])
                 .onClicked(function ()
                 {
-                    page.find("channelsList").scrollTo_(serviceId);
+                    var channelsList = page.find("channelsList").get();
+                    for (var i = 0; i < channelsList.size; ++i)
+                    {
+                        var item = channelsList.item(i);
+                        if (item.serviceId === serviceId)
+                        {
+                            channelsList.scrollTo(item);
+                            break;
+                        }
+                    }
                 })
             );
         });
@@ -1184,7 +1193,7 @@ require(mods, function (low, mid, high, files, st)
                     var item = channelsListView.item(i);
                     if (item.serviceId === serviceId)
                     {
-                        $(document).scrollTop(item.get().offset().top - $(window).height() / 2);
+                        channelsListView.scrollTo(item);
                     }
                 }
             })
