@@ -1015,6 +1015,13 @@ require(mods, function (low, mid, high, files, st)
     {
         var menu = high.element(mid.Menu)
         .add(
+            high.element(mid.MenuItem).text("Show Recordings")
+            .onClicked(openRecordingsPage)
+        )
+        .add(
+            high.element(mid.Separator)
+        )
+        .add(
             high.element(mid.MenuItem).text("Edit Favorites...")
             .onClicked(openChannelsEditorPage)
         )
@@ -1028,6 +1035,8 @@ require(mods, function (low, mid, high, files, st)
                 high.element(mid.MenuItem).text(m_channels.value()[serviceId])
                 .onClicked(function ()
                 {
+                    openChannelPage(serviceId);
+                    /*
                     var channelsList = page.find("channelsList").get();
                     for (var i = 0; i < channelsList.size; ++i)
                     {
@@ -1038,6 +1047,7 @@ require(mods, function (low, mid, high, files, st)
                             break;
                         }
                     }
+                    */
                 })
             );
         });
@@ -1083,7 +1093,9 @@ require(mods, function (low, mid, high, files, st)
 
         var now = new Date().getTime() / 1000;
 
-        var page = high.element(mid.Page);
+        var doc = high.element(mid.Document);
+
+        var page = high.element(mid.Page)
         page
         .header(
             high.element(mid.PageHeader).title("DVR")
@@ -1095,7 +1107,7 @@ require(mods, function (low, mid, high, files, st)
             .onClicked(function () { openChannelsMenu(page); })
             .left(
                 high.element(mid.Button).icon("arrow_back")
-                .onClicked(function () { page.pop_(); page.discard(); })
+                .onClicked(function () { page.pop_(); page.discard(); doc.discard(); })
             )
             .left(
                 high.element(mid.Button).icon("skip_previous")
@@ -1133,10 +1145,41 @@ require(mods, function (low, mid, high, files, st)
                 high.element(mid.Button).icon("search")
                 .onClicked(showSearchDialog)
             )
-            .right(
-                high.element(mid.Button).icon("ondemand_video")
-                .onClicked(openRecordingsPage)
+        )
+        .left(
+            high.element(mid.NavBar)
+            .height(
+                high.predicate([doc.binding("windowHeight"), page.binding("height")], function (windowHeight, pageHeight)
+                {
+                    return Math.max(windowHeight.val - page.header().get().height(), pageHeight.val);
+                })
             )
+            .labels(
+                high.predicate([doc.binding("windowHeight"), m_services], function (wh, m)
+                {
+                    var d = [];
+                    var channelsListView = page.find("channelsList");
+                    if (channelsListView)
+                    {
+                        for (var i = 0; i < channelsListView.size(); ++i)
+                        {
+                            var item = channelsListView.get().item(i);
+                            var letter = (item.title[0] || "?").toUpperCase();
+                            var offset = item.get().offset().top - page.header().get().height();
+                            d.push([letter, offset]);
+                        }
+                    }
+                    return d;
+                })
+            )
+            .onPressed(function (percents)
+            {
+                $(document).scrollTop(($(document).height() - $(window).height()) * percents);
+            })
+            .onMoved(function (percents)
+            {
+                $(document).scrollTop(($(document).height() - $(window).height()) * percents);
+            })
         )
         .add(
             high.element(mid.ListModelView).id("channelsList")
@@ -1177,6 +1220,14 @@ require(mods, function (low, mid, high, files, st)
             .model(
                 high.element(mid.ListModel).data(m_services)
             )
+            .onSizeChanged(function ()
+            {
+                var channelsList = page.find("channelsList").get();
+                if (channelsList.size === channelsList.model.size)
+                {
+                    page.get().updateGeometry();
+                }
+            })
         )
         .add(
             high.element(Timeline).id("timeline")
@@ -1202,13 +1253,14 @@ require(mods, function (low, mid, high, files, st)
                 }
             })
         );
-        page.push_(function ()
+
+        page.get().push(function ()
         {
             page.find("channelsList").get().get().css("margin-top", "3rem");
             m_scrollPosition.update();
         });
 
-        page.find("timeline").update_();
+        page.find("timeline").get().update();
 
         loadRecordings();
     }
@@ -1371,8 +1423,11 @@ require(mods, function (low, mid, high, files, st)
             return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
         });
 
-        var page = high.element(mid.Page)
-        .onSwipeBack(function () { page.pop_(); })
+        var doc = high.element(mid.Document);
+
+        var page = high.element(mid.Page);
+        page
+        //.onSwipeBack(function () { page.get().pop(); doc.discard(); })
         .header(
             high.element(mid.PageHeader).title("Channels")
             .left(
@@ -1388,7 +1443,8 @@ require(mods, function (low, mid, high, files, st)
                     {
                         console.log("services saved");
                     });
-                    page.pop_();
+                    page.get().pop();
+                    doc.discard();
                 })
             )
             .right(
@@ -1422,6 +1478,38 @@ require(mods, function (low, mid, high, files, st)
                 )
             )
         )
+        .left(
+            high.element(mid.NavBar)
+            .height(
+                high.predicate([doc.binding("windowHeight"), page.binding("height")], function (windowHeight, pageHeight)
+                {
+                    return Math.max(windowHeight.val - page.header().get().height(), pageHeight.val);
+                })
+            )
+            .labels(
+                high.predicate([doc.binding("windowHeight"), high.ref(page, "listview", "model")], function (wh, m)
+                {
+                    var d = [];
+                    var listview = page.find("listview");
+                    for (var i = 0; i < listview.size(); ++i)
+                    {
+                        var item = listview.get().item(i);
+                        var letter = (item.title[0] || "?").toUpperCase();
+                        var offset = item.get().offset().top - page.header().get().height();
+                        d.push([letter, offset]);
+                    }
+                    return d;
+                })
+            )
+            .onPressed(function (percents)
+            {
+                $(document).scrollTop(($(document).height() - $(window).height()) * percents);
+            })
+            .onMoved(function (percents)
+            {
+                $(document).scrollTop(($(document).height() - $(window).height()) * percents);
+            })
+        )
         .add(
             high.element(mid.ListModelView).id("listview")
             .delegate(function (serviceId)
@@ -1452,9 +1540,20 @@ require(mods, function (low, mid, high, files, st)
                 high.element(mid.ListModel)
                 .data(allServices)
             )
+            .onSizeChanged(function ()
+            {
+                var listview = page.find("listview");
+                if (listview)
+                {
+                    if (listview.get().size === listview.get().model.size)
+                    {
+                        page.get().updateGeometry();
+                    }
+                }
+            })
         );
 
-        page.push_();
+        page.get().push();
     }
 
     /* Opens the search page.
