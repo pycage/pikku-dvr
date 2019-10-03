@@ -894,12 +894,12 @@ require(mods, function (low, mid, high, files, st)
         .done(function (data, status, xhr)
         {
             m_channels.assign(data);
-            if (m_services.value().length === 0)
+            if (m_services.val.length === 0)
             {
-                m_services.assign(Object.keys(data).sort(function (a, b)
+                m_services.val = Object.keys(data).sort(function (a, b)
                 {
                     return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
-                }));
+                });
             }
             callback();
         })
@@ -1029,7 +1029,7 @@ require(mods, function (low, mid, high, files, st)
             high.element(mid.Separator)
         );
 
-        m_services.value().forEach(function (serviceId)
+        m_services.val.forEach(function (serviceId)
         {
             menu.add(
                 high.element(mid.MenuItem).text(m_channels.value()[serviceId])
@@ -1093,8 +1093,6 @@ require(mods, function (low, mid, high, files, st)
 
         var now = new Date().getTime() / 1000;
 
-        var doc = high.element(mid.Document);
-
         var page = high.element(mid.Page)
         page
         .header(
@@ -1107,7 +1105,7 @@ require(mods, function (low, mid, high, files, st)
             .onClicked(function () { openChannelsMenu(page); })
             .left(
                 high.element(mid.Button).icon("arrow_back")
-                .onClicked(function () { page.pop_(); page.discard(); doc.discard(); })
+                .onClicked(function () { page.pop_(); page.discard(); })
             )
             .left(
                 high.element(mid.Button).icon("skip_previous")
@@ -1148,14 +1146,9 @@ require(mods, function (low, mid, high, files, st)
         )
         .left(
             high.element(mid.NavBar)
-            .height(
-                high.predicate([doc.binding("windowHeight"), page.binding("height")], function (windowHeight, pageHeight)
-                {
-                    return Math.max(windowHeight.val - page.header().get().height(), pageHeight.val);
-                })
-            )
+            .height(page.binding("height"))
             .labels(
-                high.predicate([doc.binding("windowHeight"), m_services], function (wh, m)
+                high.predicate([high.ref(page, "channelsList", "model")], function (m)
                 {
                     var d = [];
                     var channelsListView = page.find("channelsList");
@@ -1165,7 +1158,7 @@ require(mods, function (low, mid, high, files, st)
                         {
                             var item = channelsListView.get().item(i);
                             var letter = (item.title[0] || "?").toUpperCase();
-                            var offset = item.get().offset().top - page.header().get().height();
+                            var offset = item.get().offset().top - page.header().get().height() + page.find("timeline").get().get().height();
                             d.push([letter, offset]);
                         }
                     }
@@ -1417,17 +1410,15 @@ require(mods, function (low, mid, high, files, st)
         {
             return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
         });
-        var services = m_services.value().slice()
+        var services = m_services.val.slice()
         .sort(function (a, b)
         {
             return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
         });
 
-        var doc = high.element(mid.Document);
-
         var page = high.element(mid.Page);
         page
-        //.onSwipeBack(function () { page.get().pop(); doc.discard(); })
+        //.onSwipeBack(function () { page.get().pop(); })
         .header(
             high.element(mid.PageHeader).title("Channels")
             .left(
@@ -1438,13 +1429,12 @@ require(mods, function (low, mid, high, files, st)
                     {
                         return m_channels.value()[a].toLowerCase() < m_channels.value()[b].toLowerCase() ? -1 : 1;
                     });
-                    m_services.assign(services);
+                    m_services.val = services;
                     storage.store("/pikku-dvr/services", services, function ()
                     {
                         console.log("services saved");
                     });
                     page.get().pop();
-                    doc.discard();
                 })
             )
             .right(
@@ -1480,14 +1470,9 @@ require(mods, function (low, mid, high, files, st)
         )
         .left(
             high.element(mid.NavBar)
-            .height(
-                high.predicate([doc.binding("windowHeight"), page.binding("height")], function (windowHeight, pageHeight)
-                {
-                    return Math.max(windowHeight.val - page.header().get().height(), pageHeight.val);
-                })
-            )
+            .height(page.binding("height"))
             .labels(
-                high.predicate([doc.binding("windowHeight"), high.ref(page, "listview", "model")], function (wh, m)
+                high.predicate([high.ref(page, "listview", "model")], function (m)
                 {
                     var d = [];
                     var listview = page.find("listview");
@@ -1743,7 +1728,8 @@ require(mods, function (low, mid, high, files, st)
     {
         if (value)
         {
-            m_services.assign(value);
+            console.log("set services " + JSON.stringify(value));
+            m_services.val = value.slice();
         }
     });
 });
