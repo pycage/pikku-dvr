@@ -735,6 +735,7 @@ require(mods, function (low, mid, high, files, st)
                                                                           : scheduled === "conflict" ? "orange" 
                                                                                                      : "grey";
 
+            m_item.css("border-color", ledColor);
             m_item.find("> div").css("background-color", ledColor);
         }
 
@@ -1093,7 +1094,7 @@ require(mods, function (low, mid, high, files, st)
 
         var now = new Date().getTime() / 1000;
 
-        var page = high.element(mid.Page)
+        var page = high.element(mid.Page);
         page
         .header(
             high.element(mid.PageHeader).title("DVR")
@@ -1148,7 +1149,7 @@ require(mods, function (low, mid, high, files, st)
             high.element(mid.NavBar)
             .height(page.binding("height"))
             .labels(
-                high.predicate([high.ref(page, "channelsList", "model")], function (m)
+                high.predicate([high.ref(page, "channelsList", "model"), page.binding("height")], function (m)
                 {
                     var d = [];
                     var channelsListView = page.find("channelsList");
@@ -1158,7 +1159,7 @@ require(mods, function (low, mid, high, files, st)
                         {
                             var item = channelsListView.get().item(i);
                             var letter = (item.title[0] || "?").toUpperCase();
-                            var offset = item.get().offset().top - page.header().get().height() + page.find("timeline").get().get().height();
+                            var offset = item.get().offset().top - page.header().get().height(); // + page.find("timeline").get().get().height();
                             d.push([letter, offset]);
                         }
                     }
@@ -1200,10 +1201,12 @@ require(mods, function (low, mid, high, files, st)
                         return pos !== 0 && pos < bottomPos && pos + height > topPos;
                     }
                 }))
+                /*
                 .onTitleClicked(function ()
                 {
                     openChannelPage(serviceId);
                 })
+                */
                 .onClicked(function (eventId, name, short, scheduled)
                 {
                     showEventDialog(serviceId, eventId, name, short, scheduled);
@@ -1279,8 +1282,43 @@ require(mods, function (low, mid, high, files, st)
                 .onClicked(function () { page.pop_(); })
             )
         )
+        .left(
+            high.element(mid.NavBar)
+            .height(page.binding("height"))
+            .labels(
+                high.predicate([high.ref(page, "listview", "model"), page.binding("height")], function (m)
+                {
+                    var d = [];
+                    var listView = page.find("listview");
+                    if (listView)
+                    {
+                        for (var i = 0; i < listView.size(); ++i)
+                        {
+                            var item = listView.get().item(i);
+                            var event = m.val.at(i);
+                            var offset = item.get().offset().top - page.header().get().height();
+                            var label = "" + new Date(event.start * 1000).getHours();
+                            if (label.length === 1)
+                            {
+                                label = "0" + label;
+                            }
+                            d.push([label, offset]);
+                        }
+                    }
+                    return d;
+                })
+            )
+            .onPressed(function (percents)
+            {
+                $(document).scrollTop(($(document).height() - $(window).height()) * percents);
+            })
+            .onMoved(function (percents)
+            {
+                $(document).scrollTop(($(document).height() - $(window).height()) * percents);
+            })
+        )
         .add(
-            high.element(mid.ListModelView)
+            high.element(mid.ListModelView).id("listview")
             .delegate(function (event)
             {
                 var item = high.element(SearchItem);
@@ -1294,7 +1332,7 @@ require(mods, function (low, mid, high, files, st)
                     .subtitle(event.short)
                     .scheduled(high.predicate([m_recordings], function ()
                     {
-                        return scheduled(event.serviceId, event.start, event.start + event.duration);
+                        return scheduled(serviceId, event.start, event.start + event.duration);
                     }))
                     .onClicked(function ()
                     {
@@ -1333,6 +1371,10 @@ require(mods, function (low, mid, high, files, st)
         .done(function (data, status, xhr)
         {
             console.log("got " + data.events.length + " events");
+            data.events.sort(function (a, b)
+            {
+                return a.start - b.start;
+            });
             page.find("model").data(data.events);
         })
         .fail(function (xhr, status, err)
@@ -1605,6 +1647,7 @@ require(mods, function (low, mid, high, files, st)
                 );
 
                 page.find("list").add(item);
+                item.get();
             });
         })
         .fail(function (xhr, status, err)
@@ -1645,6 +1688,7 @@ require(mods, function (low, mid, high, files, st)
         )
         .add(
             high.element(mid.Labeled).text("Record")
+            .visible(scheduled !== "conflict")
             .add(
                 high.element(mid.Switch).id("recordSwitch")
                 .enabled(scheduled !== "conflict")
@@ -1661,6 +1705,10 @@ require(mods, function (low, mid, high, files, st)
                     }
                 })
             )
+        )
+        .add(
+            high.element(mid.Label).text("Conflicts with another recording")
+            .visible(scheduled === "conflict")
         )
         .add(
             high.element(mid.Separator)
