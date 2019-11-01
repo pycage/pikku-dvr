@@ -124,7 +124,7 @@ function Service(config)
         function quote(s)
         {
             return "\"" +
-                   s.replace(/\"/g, "\\\"") +
+                   s.replace(/\"/g, "\\\"").replace(/\0/g, " ") +
                    "\"";
         }
 
