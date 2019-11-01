@@ -5,10 +5,11 @@ const mods = [
     "shellfish/mid",
     "shellfish/high",
     "shell/files",
-    "shell/storage"
+    "shell/storage",
+    "shell/ui"
 ];
 
-require(mods, function (low, mid, high, files, st)
+require(mods, function (low, mid, high, files, st, ui)
 {
     var storage = st.storage;
     var m_channels = high.binding(null);
