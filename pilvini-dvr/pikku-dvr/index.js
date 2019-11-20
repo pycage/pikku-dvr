@@ -1059,7 +1059,10 @@ require(mods, function (low, mid, high, files, st, ui)
 
     function showSearchDialog()
     {
-        var dlg = high.element(mid.Dialog).title("Search")
+        var dlg = high.element(mid.Dialog);
+        dlg
+        .onClosed(dlg.discard)
+        .title("Search")
         .button(
             high.element(mid.Button).text("Search")
             .isDefault(true)
@@ -1097,6 +1100,7 @@ require(mods, function (low, mid, high, files, st, ui)
 
         var page = high.element(mid.Page);
         page
+        .onClosed(page.discard)
         .header(
             high.element(mid.PageHeader).title("DVR")
             .subtitle(high.predicate([beginTime], function ()
@@ -1107,7 +1111,7 @@ require(mods, function (low, mid, high, files, st, ui)
             .onClicked(function () { openChannelsMenu(page); })
             .left(
                 high.element(mid.Button).icon("arrow_back")
-                .onClicked(function () { page.pop_(); page.discard(); })
+                .onClicked(function () { page.pop_(); })
             )
             .left(
                 high.element(mid.Button).icon("skip_previous")
@@ -1180,7 +1184,7 @@ require(mods, function (low, mid, high, files, st, ui)
             high.element(mid.ListModelView).id("channelsList")
             .delegate(function (serviceId)
             {
-                var item = high.element(ChannelItem);
+                var item = high.element(ChannelItem, page.find("channelsList"));
                 item
                 .title(m_channels.value()[serviceId] || "")
                 .serviceId(serviceId)
@@ -1268,6 +1272,7 @@ require(mods, function (low, mid, high, files, st, ui)
     {
         var page = high.element(mid.Page);
         page
+        .onClosed(page.discard)
         .onSwipeBack(function () { page.pop_(); })
         .header(
             high.element(mid.PageHeader)
@@ -1322,7 +1327,7 @@ require(mods, function (low, mid, high, files, st, ui)
             high.element(mid.ListModelView).id("listview")
             .delegate(function (event)
             {
-                var item = high.element(SearchItem);
+                var item = high.element(SearchItem, page.find("listview"));
                 item
                 .channel("")
                 .start(event.start)
@@ -1394,6 +1399,7 @@ require(mods, function (low, mid, high, files, st, ui)
     {
         var page = high.element(mid.Page);
         page
+        .onClosed(page.discard)
         .onSwipeBack(function () { page.pop_(); })
         .header(
             high.element(mid.PageHeader)
@@ -1410,10 +1416,10 @@ require(mods, function (low, mid, high, files, st, ui)
             )
         )
         .add(
-            high.element(mid.ListModelView)
+            high.element(mid.ListModelView).id("listview")
             .delegate(function (rec)
             {
-                var item = high.element(SearchItem);
+                var item = high.element(SearchItem, page.find("listview"));
                 item
                 .channel(m_channels.val[rec.serviceId] || "" + rec.serviceId)
                 .start(rec.start)
@@ -1461,6 +1467,7 @@ require(mods, function (low, mid, high, files, st, ui)
 
         var page = high.element(mid.Page);
         page
+        .onClosed(page.discard)
         //.onSwipeBack(function () { page.get().pop(); })
         .header(
             high.element(mid.PageHeader).title("Channels")
@@ -1542,7 +1549,7 @@ require(mods, function (low, mid, high, files, st, ui)
             high.element(mid.ListModelView).id("listview")
             .delegate(function (serviceId)
             {
-                var item = high.element(mid.ListItem)
+                var item = high.element(mid.ListItem, page.find("listview"))
                 .title(m_channels.value()[serviceId])
                 .selected(services.indexOf(serviceId) !== -1)
                 .action(["sh-icon-check_circle", function ()
@@ -1588,7 +1595,9 @@ require(mods, function (low, mid, high, files, st, ui)
      */
     function openSearchPage(searchTerm)
     {
-        var page = high.element(mid.Page)
+        var page = high.element(mid.Page);
+        page
+        .onClosed(page.discard)
         .onSwipeBack(function () { page.pop_(); })
         .header(
             high.element(mid.PageHeader).title("Search").subtitle(searchTerm)
@@ -1667,7 +1676,9 @@ require(mods, function (low, mid, high, files, st, ui)
     {
         var event = null;
 
-        var dlg = high.element(mid.Dialog)
+        var dlg = high.element(mid.Dialog);
+        dlg
+        .onClosed(dlg.discard)
         .title(m_channels.value()[serviceId])
         .button(
             high.element(mid.Button).text("Close")
@@ -1736,8 +1747,6 @@ require(mods, function (low, mid, high, files, st, ui)
         })
         .done(function (data, status, xhr)
         {
-            console.log(data);
-
             if (data.start)
             {
                 var begin = new Date(data.start * 1000);
@@ -1777,7 +1786,7 @@ require(mods, function (low, mid, high, files, st, ui)
     {
         if (value)
         {
-            console.log("set services " + JSON.stringify(value));
+            //console.log("set services " + JSON.stringify(value));
             m_services.val = value.slice();
         }
     });
