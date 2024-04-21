@@ -108,8 +108,8 @@ const CODE_PAGES = {
 
  exports.decode = function (buffer)
  {
-    var table = LATIN;
-    var offset = 0;
+    let table = LATIN;
+    let offset = 0;
 
     if (buffer[0] === 0x10)
     {
@@ -155,8 +155,8 @@ const CODE_PAGES = {
         offset = 2;
     }
 
-    var out = "";
-    for (var i = offset; i < buffer.length; ++i)
+    let out = "";
+    for (let i = offset; i < buffer.length; ++i)
     {
         out += String.fromCharCode(table[buffer[i]]);
     }
