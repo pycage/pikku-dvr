@@ -14,13 +14,13 @@ function getVersion(epg)
 
 function updateToVersion2(epg)
 {
-    var result = { "version": 2, "services": { } };
+    const result = { "version": 2, "services": { } };
 
-    for (var service in epg)
+    for (let service in epg)
     {
-        for (var table in epg[service])
+        for (let table in epg[service])
         {
-            for (var event in epg[service][table])
+            for (let event in epg[service][table])
             {
                 if (! result.services[service])
                 {
@@ -34,24 +34,24 @@ function updateToVersion2(epg)
 }
 
 
-var epgPath = modProcess.argv[2];
+const epgPath = modProcess.argv[2];
 if (! epgPath)
 {
     console.error("Usage: node epg-weaver.js <EPG path>");
     process.exit(1);
 }
 
-var epgFile = modPath.join(epgPath, "epg.json");
-var epg = modFs.existsSync(epgFile) ? JSON.parse(modFs.readFileSync(epgFile))
+const epgFile = modPath.join(epgPath, "epg.json");
+let epg = modFs.existsSync(epgFile) ? JSON.parse(modFs.readFileSync(epgFile))
                                     : { };
-var now = new Date().getTime() / 1000;
+const now = new Date().getTime() / 1000;
 
 if (getVersion(epg) < 2)
 {
     epg = updateToVersion2(epg);
 }
 
-modFs.readdirSync(epgPath).forEach(function (file)
+modFs.readdirSync(epgPath).forEach(file =>
 {
     if (! file.endsWith(".eit"))
     {
@@ -59,19 +59,19 @@ modFs.readdirSync(epgPath).forEach(function (file)
     }
     
     //console.log("Collecting EIT data from " + file + ".");
-    var eit = new modEit.EITParser().parse(modFs.readFileSync(modPath.join(epgPath, file)));
+    const eit = new modEit.EITParser().parse(modFs.readFileSync(modPath.join(epgPath, file)));
 
-    for (var ts in eit)
+    for (let ts in eit)
     {
-        for (var service in eit[ts])
+        for (let service in eit[ts])
         {
             if (! epg.services[service])
             {
                 epg.services[service] = { };
             }
-            for (var table in eit[ts][service])
+            for (let table in eit[ts][service])
             {
-                for (var event in eit[ts][service][table])
+                for (let event in eit[ts][service][table])
                 {
                     epg.services[service][event] = eit[ts][service][table][event];
                 }
@@ -79,12 +79,12 @@ modFs.readdirSync(epgPath).forEach(function (file)
             }
 
             // remove outdated events from this service
-            for (event in epg.services[service])
+            for (let event in epg.services[service])
             {
-                var evObj = epg.services[service][event];
+                const evObj = epg.services[service][event];
                 if (evObj)
                 {
-                    var evEnd = evObj.start + evObj.duration;
+                    const evEnd = evObj.start + evObj.duration;
                     if (evEnd <= now)
                     {
                         delete epg.services[service][event];
@@ -95,13 +95,13 @@ modFs.readdirSync(epgPath).forEach(function (file)
     }
 });
 
-var servicesAmount = 0;
-var eventsAmount = 0;
-for (var service in epg.services)
+let servicesAmount = 0;
+let eventsAmount = 0;
+for (let service in epg.services)
 {
     ++servicesAmount;
 
-    for (var event in epg.services[service])
+    for (let event in epg.services[service])
     {
         ++eventsAmount;
     }

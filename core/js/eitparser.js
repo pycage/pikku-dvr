@@ -23,129 +23,92 @@ const ENCODINGS = {
     0x15: "UTF-8"
 };
 
-
-
-
-exports.EITParser = function EITParser()
+/* Resolves a binary-coded decimal.
+ */
+function bcd(value)
 {
-    var m_pos = 0;
-    var m_epg = { };
+    const h = (value & 0b11110000) >> 4;
+    const l = value & 0b1111;
+    return h * 10 + l;
+}
 
-    this.parse = function(data)
+/* Coverts a Modified Julian Date value to a (year, month, day) tuple.
+ */
+function mjdToYmd(mjd)
+{
+    const yd = Math.floor((mjd - 15078.2) / 365.25);
+    const md = Math.floor((mjd - 14956.1 - Math.floor(yd * 365.25)) / 30.6001);
+    const d = mjd - 14956 - Math.floor(yd * 365.25) - Math.floor(md * 30.6001);
+    const k = md === 14 || md === 15 ? 1 : 0;
+    const y = 1900 + yd + k;
+    const m = md - 1 - k * 12;
+    return [y, m, d];
+}
+
+
+class EITParser
+{
+    constructor()
     {
-        m_pos = 0;
-        m_epg = { };
-
-        var ts = { };
-
-        // TS has services has tables has events
-
-        while (m_pos < data.length)
-        {
-            var section = readSection(data);
-            
-            if (! ts[section.tsId])
-            {
-                ts[section.tsId] = { };
-            }
-
-            var services = ts[section.tsId];
-            if (! services[section.serviceId])
-            {
-                services[section.serviceId] = { };
-            }
-
-            var tables = services[section.serviceId];
-            if (! tables[section.tableId])
-            {
-                tables[section.tableId] = { };
-            }
-
-            section.events.forEach(function (e) { tables[section.tableId][e.eventId] = e; });
-
-            //return;
-        }
-        //console.log(JSON.stringify(ts, " ", 4));
-        return ts;
-    };
-
-    /* Resolves a binary-coded decimal.
-     */
-    function bcd(value)
-    {
-        var h = (value & 0b11110000) >> 4;
-        var l = value & 0b1111;
-        return h * 10 + l;
-    }
-
-    /* Coverts a Modified Julian Date value to a (year, month, day) tuple.
-     */
-    function mjdToYmd(mjd)
-    {
-        var yd = Math.floor((mjd - 15078.2) / 365.25);
-        var md = Math.floor((mjd - 14956.1 - Math.floor(yd * 365.25)) / 30.6001);
-        var d = mjd - 14956 - Math.floor(yd * 365.25) - Math.floor(md * 30.6001);
-        var k = md === 14 || md === 15 ? 1 : 0;
-        var y = 1900 + yd + k;
-        var m = md - 1 - k * 12;
-        return [y, m, d];
+        this.m_pos = 0;
+        this.m_epg = { };
     }
 
     /* Reads the given amount of (little-endian) bytes as an integer value.
      */
-    function readBytes(data, n)
+    readBytes(data, n)
     {
-        var value = 0;
-        var mult = 8 * (n -1);
-        for (var i = 0; i < n; ++i)
+        let value = 0;
+        let mult = 8 * (n -1);
+        for (let i = 0; i < n; ++i)
         {
-            value += data[m_pos + i] << mult;
+            value += data[this.m_pos + i] << mult;
             mult -= 8;
         }
-        m_pos += n;
+        this.m_pos += n;
         return value;
     }
 
     /* Reads the given amount of bytes as a string.
      */
-    function readString(data, n)
+    readString(data, n)
     {
-        var s = data.slice(m_pos, m_pos + n);
-        m_pos += n;
+        const s = data.slice(this.m_pos, this.m_pos + n);
+        this.m_pos += n;
         return s;
     }
 
     /* Reads the given amount of bytes as an encoded string.
      */
-    function readEncoded(data, n)
+    readEncoded(data, n)
     {
-        return modTextEnc.decode(readString(data, n));
+        return modTextEnc.decode(this.readString(data, n));
     }
 
-    function readSection(data)
+    readSection(data)
     {
-        var tableId = readBytes(data, 1);
-        var sectionLength = readBytes(data, 2) & 0b0000111111111111;
-        var nextPos = m_pos + sectionLength;
-        var serviceId = readBytes(data, 2);
-        var versionNumber = (readBytes(data, 1) & 0b00111110) >> 1;
-        var sectionNumber = readBytes(data, 1);
-        var lastSectionNumber = readBytes(data, 1);
-        var tsId = readBytes(data, 2);
-        var originalNetworkId = readBytes(data, 2);
-        var segmentLastSectionNumber = readBytes(data, 1);
-        var lastTableId = readBytes(data, 1);
+        const tableId = this.readBytes(data, 1);
+        const sectionLength = this.readBytes(data, 2) & 0b0000111111111111;
+        const nextPos = this.m_pos + sectionLength;
+        const serviceId = this.readBytes(data, 2);
+        const versionNumber = (this.readBytes(data, 1) & 0b00111110) >> 1;
+        const sectionNumber = this.readBytes(data, 1);
+        const lastSectionNumber = this.readBytes(data, 1);
+        const tsId = this.readBytes(data, 2);
+        const originalNetworkId = this.readBytes(data, 2);
+        const segmentLastSectionNumber = this.readBytes(data, 1);
+        const lastTableId = this.readBytes(data, 1);
 
         //console.log("Table: " + tableId + " Service: " + serviceId + " TS: " + tsId + " Section: " + sectionNumber + " Last: " + lastSectionNumber);
 
-        var events = [];
-        while (m_pos + 4 < nextPos)
+        const events = [];
+        while (this.m_pos + 4 < nextPos)
         {
-            events.push(readEvent(data));
+            events.push(this.readEvent(data));
         }
-        events.sort(function (a, b) { return a.id - b.id; });
+        events.sort((a, b) => a.id - b.id);
 
-        m_pos = nextPos;
+        this.m_pos = nextPos;
 
         return {
             "tableId": tableId,
@@ -156,29 +119,29 @@ exports.EITParser = function EITParser()
         };
     }
 
-    function readEvent(data)
+    readEvent(data)
     {
-        var eventId = readBytes(data, 2);
-        var mjd = readBytes(data, 2);
-        var ymd = mjdToYmd(mjd);
-        var th = bcd(readBytes(data, 1));
-        var tm = bcd(readBytes(data, 1));
-        var ts = bcd(readBytes(data, 1));
-        var dh = bcd(readBytes(data, 1));
-        var dm = bcd(readBytes(data, 1));
-        var ds = bcd(readBytes(data, 1));
-        var duration = dh * 3600 + dm * 60 + ds;
+        const eventId = this.readBytes(data, 2);
+        const mjd = this.readBytes(data, 2);
+        const ymd = mjdToYmd(mjd);
+        const th = bcd(this.readBytes(data, 1));
+        const tm = bcd(this.readBytes(data, 1));
+        const ts = bcd(this.readBytes(data, 1));
+        const dh = bcd(this.readBytes(data, 1));
+        const dm = bcd(this.readBytes(data, 1));
+        const ds = bcd(this.readBytes(data, 1));
+        const duration = dh * 3600 + dm * 60 + ds;
 
-        var statusEtc = readBytes(data, 2);
-        var runningStatus = (statusEtc & 0b1110000000000000) >> 13;
-        var scrambled = (statusEtc & 0b1000000000000) !== 0 ? true : false;
+        const statusEtc = this.readBytes(data, 2);
+        const runningStatus = (statusEtc & 0b1110000000000000) >> 13;
+        const scrambled = (statusEtc & 0b1000000000000) !== 0 ? true : false;
 
-        var loopLength = statusEtc & 0b111111111111;
-        var until = m_pos + loopLength;
-        var descriptors = { };
-        while (m_pos < until)
+        const loopLength = statusEtc & 0b111111111111;
+        const until = this.m_pos + loopLength;
+        const descriptors = { };
+        while (this.m_pos < until)
         {
-            var obj = readDescriptor(data);
+            const obj = this.readDescriptor(data);
             if (! descriptors[obj.type])
             {
                 descriptors[obj.type] = [];
@@ -186,11 +149,11 @@ exports.EITParser = function EITParser()
             descriptors[obj.type].push(obj);
         }
 
-        var shortObj = (descriptors[0x4d] || [{ name: "<no information>", text: "" }])[0];
-        var extendedObjs = descriptors[0x4e] || [];
-        extendedObjs.sort(function (a, b) { return a.number  - b.number; });
+        const shortObj = (descriptors[0x4d] || [{ name: "<no information>", text: "" }])[0];
+        const extendedObjs = descriptors[0x4e] || [];
+        extendedObjs.sort((a, b) => a.number  - b.number);
 
-        var startDate = Date.UTC(ymd[0], ymd[1] - 1 /* starts at 0 */, ymd[2], th, tm, ts, 0);
+        const startDate = Date.UTC(ymd[0], ymd[1] - 1 /* starts at 0 */, ymd[2], th, tm, ts, 0);
 
         return {
             "eventId": eventId,
@@ -200,36 +163,36 @@ exports.EITParser = function EITParser()
             "start": Math.floor(new Date(startDate).getTime() / 1000),
             "duration": duration,
             "short": shortObj,
-            "extended": { "text": extendedObjs.reduce(function (t, a) { return t + a.text; }, "") }
+            "extended": { "text": extendedObjs.reduce((t, a) => t + a.text, "") }
         };
     }
 
-    function readDescriptor(data)
+    readDescriptor(data)
     {
-        var tag = readBytes(data, 1);
-        var length = readBytes(data, 1);
+        const tag = this.readBytes(data, 1);
+        const length = this.readBytes(data, 1);
 
-        var pos = m_pos;
+        const pos = this.m_pos;
 
         switch (tag)
         {
         case 0x4d: // short_event_descriptor
-            return readShortEventDescriptor(data);
+            return this.readShortEventDescriptor(data);
         case 0x4e: // extended_event_descriptor
-            return readExtendedEventDescriptor(data);
+            return this.readExtendedEventDescriptor(data);
         }
 
-        m_pos = pos + length;
+        this.m_pos = pos + length;
         return { };
     }
 
-    function readShortEventDescriptor(data)
+    readShortEventDescriptor(data)
     {
-        var languageCode = readString(data, 3);
-        var eventNameLength = readBytes(data, 1);
-        var eventName = readEncoded(data, eventNameLength);
-        var textLength = readBytes(data, 1);
-        var text = readEncoded(data, textLength);
+        const languageCode = this.readString(data, 3);
+        const eventNameLength = this.readBytes(data, 1);
+        const eventName = this.readEncoded(data, eventNameLength);
+        const textLength = this.readBytes(data, 1);
+        const text = this.readEncoded(data, textLength);
 
         return {
             "type": 0x4d,
@@ -239,25 +202,25 @@ exports.EITParser = function EITParser()
         };
     }
 
-    function readExtendedEventDescriptor(data)
+    readExtendedEventDescriptor(data)
     {
-        var descriptorNumbers = readBytes(data, 1);
-        var descriptorNumber = (descriptorNumbers & 0b11110000) >> 4;
-        var lastDescriptorNumber = descriptorNumbers & 0b1111;
-        var languageCode = readString(data, 3);
-        var lengthOfItems = readBytes(data, 1);
-        var until = m_pos + lengthOfItems;
+        const descriptorNumbers = this.readBytes(data, 1);
+        const descriptorNumber = (descriptorNumbers & 0b11110000) >> 4;
+        const lastDescriptorNumber = descriptorNumbers & 0b1111;
+        const languageCode = this.readString(data, 3);
+        const lengthOfItems = this.readBytes(data, 1);
+        const until = this.m_pos + lengthOfItems;
 
-        while (m_pos < until)
+        while (this.m_pos < until)
         {
-            var itemDescriptionLength = readBytes(data, 1);
-            var itemDescription = readString(data, itemDescriptionLength);
-            var itemLength = readBytes(data, 1);
-            var item = readString(data, itemLength);
+            const itemDescriptionLength = this.readBytes(data, 1);
+            const itemDescription = this.readString(data, itemDescriptionLength);
+            const itemLength = this.readBytes(data, 1);
+            const item = this.readString(data, itemLength);
             //console.log("Item Description: " + itemDescription.toString("utf8") + " Item: " + item.toString("utf8"))
         }
-        var textLength = readBytes(data, 1);
-        var text = readEncoded(data, textLength);
+        const textLength = this.readBytes(data, 1);
+        const text = this.readEncoded(data, textLength);
 
         return {
             "type": 0x4e,
@@ -268,18 +231,18 @@ exports.EITParser = function EITParser()
         };
     }
 
-    function readServiceDescriptor(data)
+    readServiceDescriptor(data)
     {
-        var pos = m_pos;
-        var tag = readBytes(data, 1);
-        var length = readBytes(data, 1);
-        var serviceType = readBytes(data, 1);
-        var providerNameLength = readBytes(data, 1);
-        var providerName = data.slice(m_pos + 1, providerNameLength - 1);
-        m_pos += providerNameLength;
-        var serviceNameLength = readBytes(data, 1);
-        var serviceName = data.slice(m_pos + 1, serviceNameLength - 1);
-        m_pos += serviceNameLength;
+        const pos = this.m_pos;
+        const tag = this.readBytes(data, 1);
+        const length = this.readBytes(data, 1);
+        const serviceType = this.readBytes(data, 1);
+        const providerNameLength = this.readBytes(data, 1);
+        const providerName = data.slice(this.m_pos + 1, providerNameLength - 1);
+        this.m_pos += providerNameLength;
+        const serviceNameLength = this.readBytes(data, 1);
+        const serviceName = data.slice(this.m_pos + 1, serviceNameLength - 1);
+        this.m_pos += serviceNameLength;
 
         //console.log("Tag: " + tag + " Type: " + serviceType);
         //console.log("Provider: " + providerName.toString("utf8") + " Service: " + serviceName.toString("utf8"));
@@ -291,19 +254,59 @@ exports.EITParser = function EITParser()
             "service": serviceName
         };
     }
-};
+
+    parse(data)
+    {
+        this.m_pos = 0;
+        this.m_epg = { };
+
+        const ts = { };
+
+        // TS has services has tables has events
+
+        while (this.m_pos < data.length)
+        {
+            const section = this.readSection(data);
+            
+            if (! ts[section.tsId])
+            {
+                ts[section.tsId] = { };
+            }
+
+            const services = ts[section.tsId];
+            if (! services[section.serviceId])
+            {
+                services[section.serviceId] = { };
+            }
+
+            const tables = services[section.serviceId];
+            if (! tables[section.tableId])
+            {
+                tables[section.tableId] = { };
+            }
+
+            section.events.forEach(e => { tables[section.tableId][e.eventId] = e; });
+
+            //return;
+        }
+        //console.log(JSON.stringify(ts, " ", 4));
+        return ts;
+    };
+}
+exports.EITParser = EITParser;
+
 
 /*
-var eitFile = modProcess.argv[2];
+const eitFile = modProcess.argv[2];
 console.log("Opening " + eitFile);
-var ts = new EITParser().parse(modFs.readFileSync(eitFile), "binary");
-for (var key in ts)
+const ts = new EITParser().parse(modFs.readFileSync(eitFile), "binary");
+for (let key in ts)
 {
     console.log("TS: " + key);
-    for (var key2 in ts[key])
+    for (let key2 in ts[key])
     {
         console.log("  Service: " + key2);
-        for (var key3 in ts[key][key2])
+        for (let key3 in ts[key][key2])
         {
             console.log("    Table: " + key3);
             console.log("      Events: " + Object.keys(ts[key][key2][key3]).length);
@@ -311,12 +314,12 @@ for (var key in ts)
     }
 }
 
-[52006, 52146, 53518].forEach(function (serviceId)
+[2820].forEach(serviceId =>
 {
-    var events = ts[10000][serviceId][0x50];
-    for (var eventId in events)
+    const events = ts[65534][serviceId][0x50];
+    for (let eventId in events)
     {
-        var event = events[eventId];
+        const event = events[eventId];
         console.log("Event ID: " + eventId);
         console.log("Start: " + event.start + ", duration: " + event.duration + " s");
         console.log("---")
