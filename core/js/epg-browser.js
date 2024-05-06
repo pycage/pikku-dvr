@@ -239,8 +239,8 @@ var Timeline = function (start, width, scale)
         var offset = Math.floor((event.start - m_start) * m_scale);
         var length = Math.floor(event.duration * m_scale);
 
-        var title = event.short.name.substr(0, length - 1);
-        var subtitle = event.short.text.substr(0, length - 1);
+        var title = event.short.name.substr(0, length - 1).replace(/\0/g, " ");
+        var subtitle = event.short.text.substr(0, length - 1).replace(/\0/g, " ");
 
         if (offset >= m_width)
         {
@@ -320,7 +320,7 @@ var EpgDisplay = function (pdvr)
     function loadEpg()
     {
         console.log("Loading EPG...");
-        m_epg = JSON.parse(modChildProcess.execSync(m_pdvr + " get-epg")).services || { };
+        m_epg = JSON.parse(modChildProcess.execSync(m_pdvr + " get-epg", { maxBuffer: 1024 * 1024 * 1024 })).services || { };
         m_services = Object.keys(m_epg).filter(function (serviceId)
         {
             return m_epg[serviceId] &&
@@ -670,7 +670,7 @@ var EpgDisplay = function (pdvr)
                                                     : Colors.Black;
 
             blk = new FormattedBlock(cols, fg, bg);
-            blk.write(channelName);
+            blk.write(channelName || "<no name>");
             blk.render();
             if (m_selectionOffset + i === m_currentSelectionIndex)
             {
