@@ -625,10 +625,10 @@ var EpgDisplay = function (pdvr)
             blk.write("   ", true);
             blk.writeButton("[R] Record", true);
             
-            var info = m_currentEvent.short.name;
+            var info = m_currentEvent.short.name.replace(/\0/g, " ");
             if (m_currentEvent.short.text !== "")
             {
-                info += " (" + m_currentEvent.short.text + ")";
+                info += " (" + m_currentEvent.short.text.replace(/\0/g, " ") + ")";
             }
             blk.moveTo(2, 0);
             blk.write(info);
@@ -707,15 +707,15 @@ var EpgDisplay = function (pdvr)
             console.log(currentChannelName + " " +
                         formatTime(new Date(m_currentEvent.start * 1000)) + " - " +
                         formatTime(new Date((m_currentEvent.start + m_currentEvent.duration) * 1000)));
-            var info = m_currentEvent.short.name;
+            var info = m_currentEvent.short.name.replace(/\0/g, " ");
             if (m_currentEvent.short.text !== "")
             {
-                info += " (" + m_currentEvent.short.text + ")";
+                info += " (" + m_currentEvent.short.text.replace(/\0/g, " ") + ")";
             }
             console.log(info.substr(0, cols));
             console.log(formatLine("_", cols));
             console.log("");
-            console.log(m_currentEvent.extended.text);
+            console.log(m_currentEvent.extended.text.replace(/\0/g, "\n\n"));
         }
         else
         {
