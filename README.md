@@ -1,6 +1,6 @@
 # Pikku-DVR
 
-*Copyright (c) 2019 - 2024 Martin Grimme*
+*Copyright (c) 2019 - 2025 Martin Grimme*
 
 Just a tiny (finnish: pikku) digital video recorder for the Linux command line.
 
