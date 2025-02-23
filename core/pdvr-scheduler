@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /usr/bin/env bash
 
 . `dirname $0`/../config
 . `dirname $0`/utils
